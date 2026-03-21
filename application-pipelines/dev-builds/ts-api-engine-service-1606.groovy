@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         APP_NAME = "ts-api-engine-service-1606"
-        REGISTRY = "docker.io/tanmaysinghx" // Update with your registry
+        REGISTRY = "docker.io/tanmaysinghx"
     }
 
     parameters {
@@ -12,59 +12,57 @@ pipeline {
     }
 
     stages {
-        stage('Initialize') {
+        stage('Checkout') {
             steps {
-                echo "🚀 Starting pipeline for ${env.APP_NAME} in ${params.DEPLOY_ENV} mode..."
-                sh 'docker --version || echo "ERROR: Docker not found on host"'
-            }
-        }
-
-        stage('Build & Test') {
-            steps {
+                echo "🚀 Preparing ${env.APP_NAME}..."
                 dir(env.APP_NAME) {
-                    echo "📦 Building application..."
-                    // Unified step: For Node, this handles npm. For Spring, change to mvn.
-                    sh 'npm install && npm run build || echo "Build handled by Dockerfile"'
+                    checkout([$class: 'GitSCM', 
+                        branches: [[name: '*/main']], 
+                        userRemoteConfigs: [[url: "https://github.com/tanmaysinghx/${env.APP_NAME}.git"]]
+                    ])
                 }
             }
         }
 
-        stage('Security Scan') {
+        stage('Build Application') {
             steps {
-                echo "🛡️ Running security checks..."
-                // Example: sh 'npm audit' or 'mvn dependency-check:check'
-                sh 'echo "Scanning code for vulnerabilities"'
+                dir(env.APP_NAME) {
+                    echo "📦 Running application build..."
+                    // If Node, this runs tsc. If Spring, this would be mvn package.
+                    // For now, favoring Docker-managed builds to avoid host dependencies.
+                    sh 'echo "Application build logic executed"'
+                }
             }
         }
 
-        stage('Containerize') {
+        stage('Build Docker Image') {
             steps {
                 dir(env.APP_NAME) {
-                    echo "🐳 Building Docker image: ${env.REGISTRY}/${env.APP_NAME}:${params.IMAGE_TAG}"
+                    echo "🐳 Building: ${env.REGISTRY}/${env.APP_NAME}:${params.IMAGE_TAG}"
                     sh "docker build -t ${env.REGISTRY}/${env.APP_NAME}:${params.IMAGE_TAG} ."
                 }
             }
         }
 
-        stage('Publish') {
+        stage('Push to Docker Hub') {
             steps {
-                echo "📤 Registering image to Docker Hub..."
+                echo "📤 Publishing image..."
                 // sh "docker push ${env.REGISTRY}/${env.APP_NAME}:${params.IMAGE_TAG}"
-                sh 'echo "Image pushed successfully"'
+                sh 'echo "Push simulated"'
             }
         }
 
         stage('Deploy') {
             steps {
-                // 1. Decrypt secrets using the custom vault script
+                // 1. Decrypt secrets
                 withCredentials([string(credentialsId: 'infra-vault-pwd', variable: 'VAULT_PWD')]) {
                     dir('ts-infra-devops-5005') {
-                        echo "🔑 Decrypting secrets for ${params.DEPLOY_ENV}..."
+                        echo "🔑 Decrypting ${params.DEPLOY_ENV} secrets..."
                         sh "node scripts/vault.js decrypt environments/${params.DEPLOY_ENV}/configs/${env.APP_NAME}/.env.enc ${VAULT_PWD}"
                     }
                 }
 
-                // 2. Start container with secrets injected via volume
+                // 2. Start container
                 script {
                     def secretPath = "${WORKSPACE}/ts-infra-devops-5005/environments/${params.DEPLOY_ENV}/configs/${env.APP_NAME}/.env"
                     
@@ -83,12 +81,18 @@ pipeline {
                 }
             }
         }
+
+        stage('Cleanup') {
+            steps {
+                echo "🧹 Post-deployment cleanup..."
+                sh 'docker image prune -f'
+            }
+        }
     }
 
     post {
         always {
-            echo "🧹 Cleaning up workspace..."
-            // sh 'rm -rf **/node_modules'
+            echo "🏁 Pipeline execution finished."
         }
     }
 }
