@@ -4,7 +4,7 @@ pipeline {
     environment {
         APP_NAME = "ts-api-engine-service-1606"
         REGISTRY = "tanmaysinghx" // Your Docker Hub ID
-        DOCKERHUB_CREDS = credentials('DOCKERHUB_CREDS') 
+        DOCKERHUB_CREDS = credentials('dockerhub-creds') 
     }
 
     stages {
