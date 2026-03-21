@@ -4,7 +4,7 @@ pipeline {
     environment {
         APP_NAME = "ts-api-engine-service-1606"
         REGISTRY = "tanmaysinghx" // Your Docker Hub ID
-        DOCKERHUB_CREDS = credentials('dockerhub-creds') 
+        DOCKERHUB_CREDS = credentials('DOCKERHUB_CREDS') 
     }
 
     stages {
@@ -37,10 +37,7 @@ pipeline {
         stage('📦 Build App') {
             steps {
                 dir(env.APP_NAME) {
-                    echo "🛠️ Building ${env.APP_NAME}..."
-                    // This is where you run 'npm run build' or 'mvn package'
-                    // For now, we rely on the Dockerfile to handle the internal build
-                    sh 'echo "Application source verified and ready for containerization"'
+                    echo "🛠️ The application will be built directly inside the container during the Docker Build stage."
                 }
             }
         }
@@ -58,8 +55,9 @@ pipeline {
         stage('📤 Push to Hub') {
             steps {
                 script {
-                    echo "🔐 Logging into Docker Hub..."
-                    sh "echo ${DOCKERHUB_CREDS_PSW} | docker login -u ${DOCKERHUB_CREDS_USR} --password-stdin"
+                    echo "🔐 Logging into Docker Hub (securely)..."
+                    // Using single quotes so the shell resolves the ENV var instead of Jenkins parsing it (prevents credential leaks)
+                    sh 'echo $DOCKERHUB_CREDS_PSW | docker login -u $DOCKERHUB_CREDS_USR --password-stdin'
                     
                     echo "🚀 Pushing images..."
                     sh "docker push ${env.REGISTRY}/${env.APP_NAME}:${env.IMAGE_TAG}"
