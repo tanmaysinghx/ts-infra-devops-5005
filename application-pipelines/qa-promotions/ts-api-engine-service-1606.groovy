@@ -4,22 +4,41 @@ pipeline {
     environment {
         APP_NAME = "ts-api-engine-service-1606"
         REGISTRY = "tanmaysinghx" // Your Docker Hub ID
-        DEPLOY_ENV = "qa"
+    environment {
+        APP_NAME = "ts-api-engine-service-1606"
+        REGISTRY = "tanmaysinghx" // Your Docker Hub ID
         DOCKERHUB_CREDS = credentials('dockerhub-creds') 
+        // Detected automatically below
+        DEPLOY_ENV = ""
+        TARGET_TAG = ""
     }
 
     parameters {
-        string(name: 'IMAGE_TAG', defaultValue: 'qa-latest', description: 'Target Docker image tag (e.g., qa-latest, v12-1a2b3c4)')
+        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Target Docker image tag. "latest" automatically resolves to environment-latest.')
         booleanParam(name: 'RESTART_SERVER_ONLY', defaultValue: false, description: 'Check to simply restart the existing VPS container (skips pulling new images & secrets fallback)')
     }
 
     stages {
+        stage('Initialize Environment') {
+            steps {
+                script {
+                    def branch = env.BRANCH_NAME ?: "main" 
+                    env.DEPLOY_ENV = (branch == 'main' || branch == 'master') ? 'prod' : (branch == 'qa' ? 'qa' : 'dev')
+                    
+                    env.TARGET_TAG = (params.IMAGE_TAG == 'latest') ? "${env.DEPLOY_ENV}-latest" : params.IMAGE_TAG
+                    
+                    echo "Target Environment: ${env.DEPLOY_ENV}"
+                    echo "Target Image Tag: ${env.TARGET_TAG}"
+                }
+            }
+        }
+
         stage('Checkout Infra') {
             when {
                 expression { return !params.RESTART_SERVER_ONLY }
             }
             steps {
-                echo "Preparing Infrastructure Repository..."
+                echo "Preparing Infrastructure Repository for ${env.DEPLOY_ENV}..."
                 checkout([$class: 'GitSCM', 
                     branches: [[name: '*/main']], 
                     userRemoteConfigs: [[url: "https://github.com/tanmaysinghx/ts-infra-devops-5005.git"]]
@@ -32,10 +51,10 @@ pipeline {
                 expression { return !params.RESTART_SERVER_ONLY }
             }
             steps {
-                echo "Pulling ${params.IMAGE_TAG} image from Docker Hub..."
+                echo "Pulling ${env.TARGET_TAG} image from Docker Hub..."
                 script {
                     sh 'echo $DOCKERHUB_CREDS_PSW | docker login -u $DOCKERHUB_CREDS_USR --password-stdin'
-                    sh "docker pull ${env.REGISTRY}/${env.APP_NAME}:${params.IMAGE_TAG}"
+                    sh "docker pull ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}"
                 }
             }
         }
@@ -45,7 +64,7 @@ pipeline {
                 expression { return !params.RESTART_SERVER_ONLY }
             }
             steps {
-                echo "Decrypting QA secrets..."
+                echo "Decrypting ${env.DEPLOY_ENV} secrets..."
                 withCredentials([string(credentialsId: 'infra-vault-pwd', variable: 'VAULT_PWD')]) {
                     sh "node scripts/vault.js decrypt environments/${env.DEPLOY_ENV}/configs/${env.APP_NAME}/.env.enc ${VAULT_PWD}"
                 }
@@ -70,7 +89,7 @@ pipeline {
                             -p 1606:1606 \\
                             -v ${secretPath}:/usr/src/app/.env \\
                             --restart unless-stopped \\
-                            ${env.REGISTRY}/${env.APP_NAME}:${params.IMAGE_TAG}
+                            ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}
                     """
                 }
             }
