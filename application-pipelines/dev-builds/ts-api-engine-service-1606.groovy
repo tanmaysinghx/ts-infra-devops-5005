@@ -10,9 +10,8 @@ pipeline {
     stage('Build Generic Image') {
       steps {
         dir('ts-api-engine-service-1606') {
-            sh 'npm install'
-            sh 'npm run build'
-            // Build a generic image (notice no .env is copied here)
+            // No host-level 'npm install' or 'npm run build' needed. 
+            // Docker handles this inside the image.
             sh "docker build -t ts-api-engine-service-1606:${params.DOCKER_TAG} ."
             sh "docker push ts-api-engine-service-1606:${params.DOCKER_TAG} || echo 'Push failed - check credentials'"
         }
