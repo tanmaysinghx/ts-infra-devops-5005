@@ -63,7 +63,9 @@ pipeline {
             steps {
                 echo "Decrypting ${env.DEPLOY_ENV} secrets..."
                 withCredentials([string(credentialsId: 'infra-vault-pwd', variable: 'VAULT_PWD')]) {
-                    sh "node scripts/vault.js decrypt environments/${env.DEPLOY_ENV}/configs/${env.APP_NAME}/.env.enc ${VAULT_PWD}"
+                    // Use a temporary docker container to avoid requiring 'node' on the host VPS.
+                    // Single quotes are used to let the bash shell resolve VAULT_PWD, preventing Jenkins security warnings.
+                    sh 'docker run --rm -v "${WORKSPACE}:/workspace" -w /workspace node:20-alpine node scripts/vault.js decrypt environments/' + env.DEPLOY_ENV + '/configs/' + env.APP_NAME + '/.env.enc "$VAULT_PWD"'
                 }
             }
         }
