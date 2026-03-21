@@ -73,6 +73,7 @@ pipeline {
                         docker run -d \\
                             --name ${env.APP_NAME}-${env.DEPLOY_ENV} \\
                             -p 1606:1606 \\
+                            -e TARGET_ENV=${env.DEPLOY_ENV} \\
                             -v ${secretPath}:/usr/src/app/.env \\
                             --restart unless-stopped \\
                             ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}
