@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         APP_NAME = "ts-api-engine-service-1606"
-        REGISTRY = "tanmaysinghx" // Your Docker Hub ID
+        REGISTRY = "tanmaysinghx"
         DOCKERHUB_CREDS = credentials('dockerhub-creds') 
         DEPLOY_ENV = ""
         TARGET_TAG = ""
@@ -19,10 +19,12 @@ pipeline {
                 script {
                     // Detect Environment
                     def branch = env.BRANCH_NAME ?: "main" 
-                    env.DEPLOY_ENV = (branch == 'main' || branch == 'master') ? 'prod' : (branch == 'qa' ? 'qa' : 'dev')
+                    def determinedEnv = (branch == 'main' || branch == 'master') ? 'prod' : (branch == 'qa' ? 'qa' : 'dev')
+                    env.DEPLOY_ENV = determinedEnv
 
-                    // Resolve Image Tag
-                    env.TARGET_TAG = (params.IMAGE_TAG == 'latest') ? "${env.DEPLOY_ENV}-latest" : params.IMAGE_TAG
+                    // Resolve Image Tag - Safely handle null params on first Jenkins run
+                    def requestedTag = params.IMAGE_TAG ?: 'latest'
+                    env.TARGET_TAG = (requestedTag == 'latest') ? "${determinedEnv}-latest" : requestedTag
 
                     echo "Pipeline Initialized: ${env.APP_NAME}:${env.TARGET_TAG} for ${env.DEPLOY_ENV}"
                 }

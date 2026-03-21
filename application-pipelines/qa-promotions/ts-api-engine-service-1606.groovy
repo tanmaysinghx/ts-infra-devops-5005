@@ -23,9 +23,12 @@ pipeline {
             steps {
                 script {
                     def branch = env.BRANCH_NAME ?: "main" 
-                    env.DEPLOY_ENV = (branch == 'main' || branch == 'master') ? 'prod' : (branch == 'qa' ? 'qa' : 'dev')
+                    def determinedEnv = (branch == 'main' || branch == 'master') ? 'prod' : (branch == 'qa' ? 'qa' : 'dev')
+                    env.DEPLOY_ENV = determinedEnv
                     
-                    env.TARGET_TAG = (params.IMAGE_TAG == 'latest') ? "${env.DEPLOY_ENV}-latest" : params.IMAGE_TAG
+                    // Safely handle null params on first Jenkins run
+                    def requestedTag = params.IMAGE_TAG ?: 'latest'
+                    env.TARGET_TAG = (requestedTag == 'latest') ? "${determinedEnv}-latest" : requestedTag
                     
                     echo "Target Environment: ${env.DEPLOY_ENV}"
                     echo "Target Image Tag: ${env.TARGET_TAG}"
