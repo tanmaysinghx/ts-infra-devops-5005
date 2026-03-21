@@ -31,20 +31,21 @@ pipeline {
         dir('ts-api-engine-service-1606') {
             echo "Deploying to ${params.BUILD_ENV} using runtime secret injection..."
             
-            // 1. Get the absolute path to the secrets in infra repo
-            def secretPath = "${WORKSPACE}/ts-infra-devops-5005/environments/${params.BUILD_ENV}/configs/ts-api-engine-service-1606/.env"
-            
-            // 2. Start the container, mounting the secrets from the build server
-            // In a real production setup, you might use 'docker stack deploy' or sync these to the target server
-            sh """
-              docker stop ts-api-engine-${params.BUILD_ENV} || true
-              docker rm ts-api-engine-${params.BUILD_ENV} || true
-              docker run -d \
-                --name ts-api-engine-${params.BUILD_ENV} \
-                -p 1606:1606 \
-                -v ${secretPath}:/usr/src/app/.env \
-                ts-api-engine-service-1606:${params.DOCKER_TAG}
-            """
+            script {
+                // 1. Get the absolute path to the secrets in infra repo
+                def secretPath = "${WORKSPACE}/ts-infra-devops-5005/environments/${params.BUILD_ENV}/configs/ts-api-engine-service-1606/.env"
+                
+                // 2. Start the container, mounting the secrets from the build server
+                sh """
+                  docker stop ts-api-engine-${params.BUILD_ENV} || true
+                  docker rm ts-api-engine-${params.BUILD_ENV} || true
+                  docker run -d \
+                    --name ts-api-engine-${params.BUILD_ENV} \
+                    -p 1606:1606 \
+                    -v ${secretPath}:/usr/src/app/.env \
+                    ts-api-engine-service-1606:${params.DOCKER_TAG}
+                """
+            }
         }
       }
     }
