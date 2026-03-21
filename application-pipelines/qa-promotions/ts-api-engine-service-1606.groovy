@@ -9,7 +9,6 @@ pipeline {
 
     parameters {
         string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Target Docker image tag. "latest" automatically resolves to environment-latest.')
-        choice(name: 'ACTION', choices: ['Deploy Image', 'Restart Server Only'], description: 'Choose whether to deploy a new image or just restart the existing server.')
     }
 
     stages {
@@ -31,9 +30,6 @@ pipeline {
         }
 
         stage('Checkout Infra') {
-            when {
-                expression { return params.ACTION != 'Restart Server Only' }
-            }
             steps {
                 echo "Preparing Infrastructure Repository for ${env.DEPLOY_ENV}..."
                 checkout([$class: 'GitSCM', 
@@ -44,9 +40,6 @@ pipeline {
         }
 
         stage('Pull Image') {
-            when {
-                expression { return params.ACTION != 'Restart Server Only' }
-            }
             steps {
                 echo "Pulling ${env.TARGET_TAG} image from Docker Hub..."
                 script {
@@ -57,9 +50,6 @@ pipeline {
         }
 
         stage('Decrypt Secrets') {
-            when {
-                expression { return params.ACTION != 'Restart Server Only' }
-            }
             steps {
                 echo "Decrypting ${env.DEPLOY_ENV} secrets..."
                 withCredentials([string(credentialsId: 'infra-vault-pwd', variable: 'VAULT_PWD')]) {
@@ -71,9 +61,6 @@ pipeline {
         }
 
         stage('Deploy Container') {
-            when {
-                expression { return params.ACTION != 'Restart Server Only' }
-            }
             steps {
                 script {
                     echo "Deploying application to VPS..."
@@ -94,20 +81,7 @@ pipeline {
             }
         }
 
-        stage('Restart Server Only') {
-            when {
-                expression { return params.ACTION == 'Restart Server Only' }
-            }
-            steps {
-                echo "Restarting the existing container..."
-                sh "docker restart ${env.APP_NAME}-${env.DEPLOY_ENV}"
-            }
-        }
-
         stage('Cleanup') {
-            when {
-                expression { return params.ACTION != 'Restart Server Only' }
-            }
             steps {
                 echo "Cleaning up local images..."
                 sh "docker image prune -f"
