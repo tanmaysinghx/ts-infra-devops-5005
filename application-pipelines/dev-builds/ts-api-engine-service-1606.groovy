@@ -8,7 +8,7 @@ pipeline {
     }
 
     stages {
-        stage('⚙️ Initialize') {
+        stage('Checkout') {
             steps {
                 script {
                     // Detect Environment
@@ -19,13 +19,8 @@ pipeline {
                     def shortSha = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                     env.IMAGE_TAG = "v${env.BUILD_NUMBER}-${shortSha}"
 
-                    echo "🚀 Pipeline Initialized: ${env.APP_NAME}:${env.IMAGE_TAG} for ${env.DEPLOY_ENV}"
+                    echo "Pipeline Initialized: ${env.APP_NAME}:${env.IMAGE_TAG} for ${env.DEPLOY_ENV}"
                 }
-            }
-        }
-
-        stage('📂 Checkout') {
-            steps {
                 dir(env.APP_NAME) {
                     git branch: 'main', 
                         url: "https://github.com/tanmaysinghx/${env.APP_NAME}.git",
@@ -34,41 +29,41 @@ pipeline {
             }
         }
 
-        stage('📦 Build App') {
+        stage('Build Application') {
             steps {
                 dir(env.APP_NAME) {
-                    echo "🛠️ The application will be built directly inside the container during the Docker Build stage."
+                    echo "The application will be built directly inside the container during the Docker Build stage."
                 }
             }
         }
 
-        stage('🐳 Docker Build') {
+        stage('Build Docker Image') {
             steps {
                 dir(env.APP_NAME) {
-                    echo "🏗️ Creating Docker Image..."
+                    echo "Creating Docker Image..."
                     sh "docker build -t ${env.REGISTRY}/${env.APP_NAME}:${env.IMAGE_TAG} ."
                     sh "docker tag ${env.REGISTRY}/${env.APP_NAME}:${env.IMAGE_TAG} ${env.REGISTRY}/${env.APP_NAME}:${env.DEPLOY_ENV}-latest"
                 }
             }
         }
 
-        stage('📤 Push to Hub') {
+        stage('Push to Docker Hub') {
             steps {
                 script {
-                    echo "🔐 Logging into Docker Hub (securely)..."
+                    echo "Logging into Docker Hub (securely)..."
                     // Using single quotes so the shell resolves the ENV var instead of Jenkins parsing it (prevents credential leaks)
                     sh 'echo $DOCKERHUB_CREDS_PSW | docker login -u $DOCKERHUB_CREDS_USR --password-stdin'
                     
-                    echo "🚀 Pushing images..."
+                    echo "Pushing images..."
                     sh "docker push ${env.REGISTRY}/${env.APP_NAME}:${env.IMAGE_TAG}"
                     sh "docker push ${env.REGISTRY}/${env.APP_NAME}:${env.DEPLOY_ENV}-latest"
                 }
             }
         }
 
-        stage('🧹 Cleanup') {
+        stage('Cleanup') {
             steps {
-                echo "♻️ Cleaning up local images..."
+                echo "Cleaning up local images..."
                 sh "docker rmi ${env.REGISTRY}/${env.APP_NAME}:${env.IMAGE_TAG} || true"
                 sh "docker rmi ${env.REGISTRY}/${env.APP_NAME}:${env.DEPLOY_ENV}-latest || true"
                 sh "docker logout"
@@ -78,10 +73,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Successfully built and pushed ${env.APP_NAME}:${env.IMAGE_TAG}"
+            echo "Successfully built and pushed ${env.APP_NAME}:${env.IMAGE_TAG}"
         }
         failure {
-            echo "❌ Pipeline failed! Please check console for details."
+            echo "Pipeline failed! Please check console for details."
         }
     }
 }
