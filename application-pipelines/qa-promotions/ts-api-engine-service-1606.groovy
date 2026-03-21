@@ -15,7 +15,7 @@ pipeline {
 
     parameters {
         string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Target Docker image tag. "latest" automatically resolves to environment-latest.')
-        booleanParam(name: 'RESTART_SERVER_ONLY', defaultValue: false, description: 'Check to simply restart the existing VPS container (skips pulling new images & secrets fallback)')
+        choice(name: 'ACTION', choices: ['Deploy Image', 'Restart Server Only'], description: 'Choose whether to deploy a new image or just restart the existing server.')
     }
 
     stages {
@@ -38,7 +38,7 @@ pipeline {
 
         stage('Checkout Infra') {
             when {
-                expression { return !params.RESTART_SERVER_ONLY }
+                expression { return params.ACTION != 'Restart Server Only' }
             }
             steps {
                 echo "Preparing Infrastructure Repository for ${env.DEPLOY_ENV}..."
@@ -51,7 +51,7 @@ pipeline {
 
         stage('Pull Image') {
             when {
-                expression { return !params.RESTART_SERVER_ONLY }
+                expression { return params.ACTION != 'Restart Server Only' }
             }
             steps {
                 echo "Pulling ${env.TARGET_TAG} image from Docker Hub..."
@@ -64,7 +64,7 @@ pipeline {
 
         stage('Decrypt Secrets') {
             when {
-                expression { return !params.RESTART_SERVER_ONLY }
+                expression { return params.ACTION != 'Restart Server Only' }
             }
             steps {
                 echo "Decrypting ${env.DEPLOY_ENV} secrets..."
@@ -76,7 +76,7 @@ pipeline {
 
         stage('Deploy Container') {
             when {
-                expression { return !params.RESTART_SERVER_ONLY }
+                expression { return params.ACTION != 'Restart Server Only' }
             }
             steps {
                 script {
@@ -100,7 +100,7 @@ pipeline {
 
         stage('Restart Server Only') {
             when {
-                expression { return params.RESTART_SERVER_ONLY }
+                expression { return params.ACTION == 'Restart Server Only' }
             }
             steps {
                 echo "Restarting the existing container..."
@@ -110,7 +110,7 @@ pipeline {
 
         stage('Cleanup') {
             when {
-                expression { return !params.RESTART_SERVER_ONLY }
+                expression { return params.ACTION != 'Restart Server Only' }
             }
             steps {
                 echo "Cleaning up local images..."
