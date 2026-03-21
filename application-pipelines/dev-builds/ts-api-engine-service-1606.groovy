@@ -5,8 +5,6 @@ pipeline {
         APP_NAME = "ts-api-engine-service-1606"
         REGISTRY = "tanmaysinghx"
         DOCKERHUB_CREDS = credentials('dockerhub-creds') 
-        DEPLOY_ENV = ""
-        TARGET_TAG = ""
     }
 
     stages {
