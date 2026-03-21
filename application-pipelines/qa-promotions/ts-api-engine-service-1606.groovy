@@ -4,9 +4,6 @@ pipeline {
     environment {
         APP_NAME = "ts-api-engine-service-1606"
         REGISTRY = "tanmaysinghx" // Your Docker Hub ID
-    environment {
-        APP_NAME = "ts-api-engine-service-1606"
-        REGISTRY = "tanmaysinghx" // Your Docker Hub ID
         DOCKERHUB_CREDS = credentials('dockerhub-creds') 
         // Detected automatically below
         DEPLOY_ENV = ""

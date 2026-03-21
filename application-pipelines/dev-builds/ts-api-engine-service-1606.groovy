@@ -9,10 +9,6 @@ pipeline {
         TARGET_TAG = ""
     }
 
-    parameters {
-        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Target Docker image tag. "latest" automatically resolves to environment-latest.')
-    }
-
     stages {
         stage('Checkout') {
             steps {
@@ -22,9 +18,8 @@ pipeline {
                     def determinedEnv = (branch == 'main' || branch == 'master') ? 'prod' : (branch == 'qa' ? 'qa' : 'dev')
                     env.DEPLOY_ENV = determinedEnv
 
-                    // Resolve Image Tag - Safely handle null params on first Jenkins run
-                    def requestedTag = params.IMAGE_TAG ?: 'latest'
-                    env.TARGET_TAG = (requestedTag == 'latest') ? "${determinedEnv}-latest" : requestedTag
+                    // Auto-generate incrementing tag and never prompt user
+                    env.TARGET_TAG = "v${env.BUILD_NUMBER}"
 
                     echo "Pipeline Initialized: ${env.APP_NAME}:${env.TARGET_TAG} for ${env.DEPLOY_ENV}"
                 }
