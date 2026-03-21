@@ -68,10 +68,12 @@ pipeline {
                     def secretPath = "${WORKSPACE}/environments/${env.DEPLOY_ENV}/configs/${env.APP_NAME}/.env"
                     
                     sh """
+                        docker network create ts-app-network || true
                         docker stop ${env.APP_NAME}-${env.DEPLOY_ENV} || true
                         docker rm ${env.APP_NAME}-${env.DEPLOY_ENV} || true
                         docker run -d \\
                             --name ${env.APP_NAME}-${env.DEPLOY_ENV} \\
+                            --network ts-app-network \\
                             -p 1606:1606 \\
                             -e TARGET_ENV=${env.DEPLOY_ENV} \\
                             -v ${secretPath}:/usr/src/app/.env \\
