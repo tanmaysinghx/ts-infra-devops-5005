@@ -21,10 +21,12 @@ pipeline {
 
     stage('Deploy with Secrets') {
       steps {
-        // Unlock secrets if encrypted
-        // withCredentials([file(credentialsId: 'infra-repo-key', variable: 'KEY_FILE')]) {
-        //   sh "git-crypt unlock ${KEY_FILE}"
-        // }
+        // Unlock secrets using the custom vault script
+        withCredentials([string(credentialsId: 'infra-vault-pwd', variable: 'VAULT_PWD')]) {
+          dir('ts-infra-devops-5005') {
+            sh "node scripts/vault.js decrypt environments/${params.BUILD_ENV}/configs/ts-api-engine-service-1606/.env.enc ${VAULT_PWD}"
+          }
+        }
 
         dir('ts-api-engine-service-1606') {
             echo "Deploying to ${params.BUILD_ENV} using runtime secret injection..."
