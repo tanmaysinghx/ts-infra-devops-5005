@@ -85,7 +85,7 @@ pipeline {
                         docker run -d \\
                             --name ${env.APP_NAME}-${env.DEPLOY_ENV} \\
                             --network ts-app-network \\
-                            -p 8080:8080 \\
+                            -p 1701:8080 \\
                             ${volumeMount} \\
                             --restart unless-stopped \\
                             ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}
