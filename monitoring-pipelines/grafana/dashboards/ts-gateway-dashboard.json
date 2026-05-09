@@ -154,7 +154,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "coalesce(sum(rate(ts_gateway_requests_total{status=~\"[123].*\"}[1m])) / sum(rate(ts_gateway_requests_total[1m])) * 100, 100)",
+          "expr": "(sum(rate(ts_gateway_requests_total{status=~\"[123].*\"}[1m])) / sum(rate(ts_gateway_requests_total[1m])) * 100) or vector(100)",
           "legendFormat": "Success Rate",
           "range": true,
           "refId": "A"
@@ -223,7 +223,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "coalesce((sum(rate(ts_gateway_request_duration_seconds_sum[1m])) / sum(rate(ts_gateway_request_duration_seconds_count[1m]))) * 1000, 0)",
+          "expr": "((sum(rate(ts_gateway_request_duration_seconds_sum[1m])) / sum(rate(ts_gateway_request_duration_seconds_count[1m]))) * 1000) or vector(0)",
           "legendFormat": "Latency",
           "range": true,
           "refId": "A"
@@ -499,7 +499,7 @@
             "uid": "Loki"
           },
           "editorMode": "code",
-          "expr": "{container=\"ts-api-gateway-1701\"} | json",
+          "expr": "{container=~\".*ts-api-gateway.*\"} | json",
           "refId": "A"
         }
       ],
