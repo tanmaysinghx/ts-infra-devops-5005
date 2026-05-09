@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         CONTAINER_NAME = 'promtail-1701'
-        IMAGE_NAME = 'grafana/promtail:2.9.3'
+        IMAGE_NAME = 'grafana/promtail:latest'
     }
 
     stages {
