@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME = "ts-api-engine-service-1606"
+        APP_NAME = "ts-api-gateway-1701"
         REGISTRY = "tanmaysinghx" // Your Docker Hub ID
         DOCKERHUB_CREDS = credentials('dockerhub-creds') 
     }
@@ -14,7 +14,8 @@ pipeline {
     stages {
         stage('Initialize Environment') {
             steps {
-                script {aNAME ?: "main" 
+                script {
+                    def branch = env.BRANCH_NAME ?: "main" 
                     def determinedEnv = (branch == 'main' || branch == 'master') ? 'prod' : (branch == 'qa' ? 'qa' : 'dev')
                     env.DEPLOY_ENV = determinedEnv
                     
@@ -50,11 +51,18 @@ pipeline {
 
         stage('Decrypt Secrets') {
             steps {
-                echo "Decrypting ${env.DEPLOY_ENV} secrets..."
-                withCredentials([string(credentialsId: 'infra-vault-pwd', variable: 'VAULT_PWD')]) {
-                    // Use a temporary docker container to avoid requiring 'node' on the host VPS.
-                    // Single quotes are used to let the bash shell resolve VAULT_PWD, preventing Jenkins security warnings.
-                    sh 'docker run --rm -v "${WORKSPACE}:/workspace" -w /workspace node:20-alpine node scripts/vault.js decrypt environments/' + env.DEPLOY_ENV + '/configs/' + env.APP_NAME + '/.env.enc "$VAULT_PWD"'
+                script {
+                    def secretFile = "environments/${env.DEPLOY_ENV}/configs/${env.APP_NAME}/.env.enc"
+                    if (fileExists(secretFile)) {
+                        echo "Decrypting ${env.DEPLOY_ENV} secrets..."
+                        withCredentials([string(credentialsId: 'infra-vault-pwd', variable: 'VAULT_PWD')]) {
+                            // Use a temporary docker container to avoid requiring 'node' on the host VPS.
+                            // Single quotes are used to let the bash shell resolve VAULT_PWD, preventing Jenkins security warnings.
+                            sh 'docker run --rm -v "${WORKSPACE}:/workspace" -w /workspace node:20-alpine node scripts/vault.js decrypt ' + secretFile + ' "$VAULT_PWD"'
+                        }
+                    } else {
+                        echo "No secrets file found at ${secretFile}. Skipping decryption stage."
+                    }
                 }
             }
         }
@@ -63,8 +71,10 @@ pipeline {
             steps {
                 script {
                     echo "Deploying application to VPS..."
-                    // Since Jenkins is on the same VPS, we map the local workspace decrypted file directly into the container
+                    // Since Jenkins is on the same VPS, we map the local workspace decrypted file directly into the container if it exists
                     def secretPath = "${WORKSPACE}/environments/${env.DEPLOY_ENV}/configs/${env.APP_NAME}/.env"
+                    def hasSecret = fileExists(secretPath)
+                    def volumeMount = hasSecret ? "-v ${secretPath}:/app/.env" : ""
                     
                     sh """
                         docker network create ts-app-network || true
@@ -73,9 +83,8 @@ pipeline {
                         docker run -d \\
                             --name ${env.APP_NAME}-${env.DEPLOY_ENV} \\
                             --network ts-app-network \\
-                            -p 1606:1606 \\
-                            -e TARGET_ENV=${env.DEPLOY_ENV} \\
-                            -v ${secretPath}:/usr/src/app/.env \\
+                            -p 8080:8080 \\
+                            ${volumeMount} \\
                             --restart unless-stopped \\
                             ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}
                     """
