@@ -29,6 +29,7 @@ pipeline {
                         docker network create gateway-observability-net || true
                         docker run -d \
                           --name ${CONTAINER_NAME} \
+                          --user=0 \
                           --network gateway-observability-net \
                           -v "/var/run/docker.sock:/var/run/docker.sock" \
                           -v "/var/log:/var/log" \
