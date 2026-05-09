@@ -78,6 +78,8 @@ pipeline {
                     
                     sh """
                         docker network create ts-app-network || true
+                        docker stop ${env.APP_NAME} || true
+                        docker rm ${env.APP_NAME} || true
                         docker stop ${env.APP_NAME}-${env.DEPLOY_ENV} || true
                         docker rm ${env.APP_NAME}-${env.DEPLOY_ENV} || true
                         docker run -d \\
