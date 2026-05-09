@@ -28,6 +28,7 @@ pipeline {
                 dir('monitoring-pipelines') {
                     sh """
                         docker network create gateway-observability-net || true
+                        sudo mkdir -p /var/lib/grafana-1701-data && sudo chown -R 472:472 /var/lib/grafana-1701-data || true
                         docker run -d \
                           --name ${CONTAINER_NAME} \
                           -p ${PORT_MAPPING} \
@@ -35,9 +36,10 @@ pipeline {
                           -e GF_SECURITY_ADMIN_USER=admin \
                           -e GF_SECURITY_ADMIN_PASSWORD=admin \
                           -e GF_USERS_ALLOW_SIGN_UP=false \
+                          -v "/var/lib/grafana-1701-data:/var/lib/grafana" \
                           -v "\$(pwd)/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources" \
                           -v "\$(pwd)/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards" \
-                          -v "\$(pwd)/grafana/dashboards:/var/lib/grafana/dashboards" \
+                          -v "\$(pwd)/grafana/dashboards:/var/lib/grafana-dashboards" \
                           --restart unless-stopped \
                           ${IMAGE_NAME}
                     """
