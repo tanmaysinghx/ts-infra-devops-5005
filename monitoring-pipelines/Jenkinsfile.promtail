@@ -30,6 +30,7 @@ pipeline {
                         docker run -d \
                           --name ${CONTAINER_NAME} \
                           --user=0 \
+                          -e DOCKER_API_VERSION=1.44 \
                           --network gateway-observability-net \
                           -v "/var/run/docker.sock:/var/run/docker.sock" \
                           -v "/var/log:/var/log" \
