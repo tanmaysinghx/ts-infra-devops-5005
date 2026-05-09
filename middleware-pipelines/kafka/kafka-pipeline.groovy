@@ -15,9 +15,18 @@ pipeline {
         KAFKA_VOLUME = 'kafka-data'
 
         ZOOKEEPER_VOLUME = 'zookeeper-data'
+
+        VPS_IP = '57.128.171.127'
     }
 
     stages {
+
+        stage('Checkout Source') {
+
+            steps {
+                checkout scm
+            }
+        }
 
         stage('Prepare Network and Volumes') {
 
@@ -52,6 +61,18 @@ pipeline {
             }
         }
 
+        stage('Pull Images') {
+
+            steps {
+
+                sh 'docker pull bitnami/zookeeper:3.9'
+
+                sh 'docker pull bitnami/kafka:3.7'
+
+                sh 'docker pull provectuslabs/kafka-ui:latest'
+            }
+        }
+
         stage('Deploy Zookeeper') {
 
             steps {
@@ -64,7 +85,7 @@ pipeline {
                       -e ALLOW_ANONYMOUS_LOGIN=yes \
                       -v ${ZOOKEEPER_VOLUME}:/bitnami/zookeeper \
                       --restart unless-stopped \
-                      bitnami/zookeeper:latest
+                      bitnami/zookeeper:3.9
                 """
             }
         }
@@ -81,10 +102,10 @@ pipeline {
                       -e KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper-server:2181 \
                       -e ALLOW_PLAINTEXT_LISTENER=yes \
                       -e KAFKA_CFG_LISTENERS=PLAINTEXT://:9092 \
-                      -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://57.128.171.127:9092 \
+                      -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://${VPS_IP}:9092 \
                       -v ${KAFKA_VOLUME}:/bitnami/kafka \
                       --restart unless-stopped \
-                      bitnami/kafka:latest
+                      bitnami/kafka:3.7
                 """
             }
         }
@@ -106,12 +127,48 @@ pipeline {
             }
         }
 
+        stage('Wait For Kafka Startup') {
+
+            steps {
+
+                echo 'Waiting for Kafka startup...'
+
+                sh 'sleep 30'
+            }
+        }
+
         stage('Verify Deployment') {
 
             steps {
 
-                sh "docker ps"
+                sh 'docker ps'
+
+                sh "docker logs ${KAFKA_CONTAINER} --tail 50"
+
+                sh "docker logs ${KAFKA_UI_CONTAINER} --tail 50"
             }
+        }
+    }
+
+    post {
+
+        success {
+
+            echo 'Kafka infrastructure deployed successfully.'
+
+            echo 'Kafka Broker Port: 9092'
+
+            echo 'Kafka UI Port: 8085'
+        }
+
+        failure {
+
+            echo 'Kafka deployment failed.'
+        }
+
+        always {
+
+            sh "docker ps || true"
         }
     }
 }
