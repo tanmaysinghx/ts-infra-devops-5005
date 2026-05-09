@@ -13,7 +13,7 @@ pipeline {
 
         ORACLE_PORT = '1521'
 
-        ORACLE_PASSWORD = 'StrongPassword123'
+        ORACLE_PASSWORD = 'Tanmay@1999'
     }
 
     stages {
