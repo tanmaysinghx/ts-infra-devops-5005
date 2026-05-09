@@ -30,9 +30,9 @@ pipeline {
                         docker run -d \
                           --name ${CONTAINER_NAME} \
                           --network gateway-observability-net \
-                          -v /var/log:/var/log \
-                          -v \$(pwd)/promtail.yml:/etc/promtail/config.yml \
-                          -v /var/lib/docker/containers:/var/lib/docker/containers:ro \
+                          -v "/var/log:/var/log" \
+                          -v "\$(pwd)/promtail.yml:/etc/promtail/config.yml" \
+                          -v "/var/lib/docker/containers:/var/lib/docker/containers:ro" \
                           --restart unless-stopped \
                           ${IMAGE_NAME} -config.file=/etc/promtail/config.yml
                     """

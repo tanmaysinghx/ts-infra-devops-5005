@@ -35,9 +35,9 @@ pipeline {
                           -e GF_SECURITY_ADMIN_USER=admin \
                           -e GF_SECURITY_ADMIN_PASSWORD=admin \
                           -e GF_USERS_ALLOW_SIGN_UP=false \
-                          -v \$(pwd)/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources \
-                          -v \$(pwd)/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards \
-                          -v \$(pwd)/grafana/dashboards:/var/lib/grafana/dashboards \
+                          -v "\$(pwd)/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources" \
+                          -v "\$(pwd)/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards" \
+                          -v "\$(pwd)/grafana/dashboards:/var/lib/grafana/dashboards" \
                           --restart unless-stopped \
                           ${IMAGE_NAME}
                     """

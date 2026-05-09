@@ -32,7 +32,7 @@ pipeline {
                           --name ${CONTAINER_NAME} \
                           -p ${PORT_MAPPING} \
                           --network gateway-observability-net \
-                          -v \$(pwd)/loki.yml:/etc/loki/local-config.yaml \
+                          -v "\$(pwd)/loki.yml:/etc/loki/local-config.yaml" \
                           --restart unless-stopped \
                           ${IMAGE_NAME} -config.file=/etc/loki/local-config.yaml
                     """
