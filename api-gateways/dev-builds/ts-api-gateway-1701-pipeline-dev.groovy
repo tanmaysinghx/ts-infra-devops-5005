@@ -23,7 +23,7 @@ pipeline {
                 }
                 dir(env.APP_NAME) {
                     git branch: 'main', 
-                        url: "https://github.com/tanmaysinghx/api-gateway.git",
+                        url: "https://github.com/tanmaysinghx/ts-api-gateway-1701.git",
                         credentialsId: 'github-token'
                 }
             }
