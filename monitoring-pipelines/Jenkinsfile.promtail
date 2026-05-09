@@ -1,0 +1,61 @@
+pipeline {
+    agent any
+
+    environment {
+        CONTAINER_NAME = 'promtail-1701'
+        IMAGE_NAME = 'grafana/promtail:2.8.2'
+    }
+
+    stages {
+        stage('Checkout Source') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Stop and Remove Active Promtail Container') {
+            steps {
+                script {
+                    sh "docker stop ${CONTAINER_NAME} || true"
+                    sh "docker rm ${CONTAINER_NAME} || true"
+                }
+            }
+        }
+
+        stage('Deploy Promtail Container') {
+            steps {
+                dir('monitoring-pipelines') {
+                    sh """
+                        docker network create gateway-observability-net || true
+                        docker run -d \
+                          --name ${CONTAINER_NAME} \
+                          --network gateway-observability-net \
+                          -v /var/log:/var/log \
+                          -v \$(pwd)/promtail.yml:/etc/promtail/config.yml \
+                          -v /var/lib/docker/containers:/var/lib/docker/containers:ro \
+                          --restart unless-stopped \
+                          ${IMAGE_NAME} -config.file=/etc/promtail/config.yml
+                    """
+                }
+            }
+        }
+
+        stage('Verify Promtail Health') {
+            steps {
+                script {
+                    echo "Checking container status..."
+                    sh "docker ps -f name=${CONTAINER_NAME}"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Promtail log scraper has been successfully deployed and initialized!"
+        }
+        failure {
+            echo "❌ Promtail deployment failed. Please check build console and container logs."
+        }
+    }
+}

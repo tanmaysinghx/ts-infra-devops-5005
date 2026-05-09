@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: 'TS API Gateway Dashboards'
+    orgId: 1
+    folder: 'TS Gateway Monitoring'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

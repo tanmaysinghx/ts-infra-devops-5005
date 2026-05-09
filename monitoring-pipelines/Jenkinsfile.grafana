@@ -1,0 +1,66 @@
+pipeline {
+    agent any
+
+    environment {
+        CONTAINER_NAME = 'grafana-1701'
+        PORT_MAPPING = '3000:3000'
+        IMAGE_NAME = 'grafana/grafana:10.0.3'
+    }
+
+    stages {
+        stage('Checkout Source') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Stop and Remove Active Grafana Container') {
+            steps {
+                script {
+                    sh "docker stop ${CONTAINER_NAME} || true"
+                    sh "docker rm ${CONTAINER_NAME} || true"
+                }
+            }
+        }
+
+        stage('Deploy Grafana Container') {
+            steps {
+                dir('monitoring-pipelines') {
+                    sh """
+                        docker network create gateway-observability-net || true
+                        docker run -d \
+                          --name ${CONTAINER_NAME} \
+                          -p ${PORT_MAPPING} \
+                          --network gateway-observability-net \
+                          -e GF_SECURITY_ADMIN_USER=admin \
+                          -e GF_SECURITY_ADMIN_PASSWORD=admin \
+                          -e GF_USERS_ALLOW_SIGN_UP=false \
+                          -v \$(pwd)/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources \
+                          -v \$(pwd)/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards \
+                          -v \$(pwd)/grafana/dashboards:/var/lib/grafana/dashboards \
+                          --restart unless-stopped \
+                          ${IMAGE_NAME}
+                    """
+                }
+            }
+        }
+
+        stage('Verify Grafana Health') {
+            steps {
+                script {
+                    echo "Checking container status..."
+                    sh "docker ps -f name=${CONTAINER_NAME}"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Grafana visualization console has been successfully deployed and initialized on port 3000!"
+        }
+        failure {
+            echo "❌ Grafana deployment failed. Please check build console and container logs."
+        }
+    }
+}

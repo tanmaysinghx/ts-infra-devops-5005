@@ -1,0 +1,61 @@
+pipeline {
+    agent any
+
+    environment {
+        CONTAINER_NAME = 'prometheus-1701'
+        PORT_MAPPING = '9090:9090'
+        IMAGE_NAME = 'prom/prometheus:v2.45.0'
+    }
+
+    stages {
+        stage('Checkout Source') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Stop and Remove Active Prometheus Container') {
+            steps {
+                script {
+                    sh "docker stop ${CONTAINER_NAME} || true"
+                    sh "docker rm ${CONTAINER_NAME} || true"
+                }
+            }
+        }
+
+        stage('Deploy Prometheus Container') {
+            steps {
+                dir('monitoring-pipelines') {
+                    sh """
+                        docker network create gateway-observability-net || true
+                        docker run -d \
+                          --name ${CONTAINER_NAME} \
+                          -p ${PORT_MAPPING} \
+                          --network gateway-observability-net \
+                          -v \$(pwd)/prometheus.yml:/etc/prometheus/prometheus.yml \
+                          --restart unless-stopped \
+                          ${IMAGE_NAME}
+                    """
+                }
+            }
+        }
+
+        stage('Verify Prometheus Health') {
+            steps {
+                script {
+                    echo "Checking container status..."
+                    sh "docker ps -f name=${CONTAINER_NAME}"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Prometheus has been successfully deployed and initialized on port 9090!"
+        }
+        failure {
+            echo "❌ Prometheus deployment failed. Please check build console and container logs."
+        }
+    }
+}
