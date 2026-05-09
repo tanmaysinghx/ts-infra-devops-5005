@@ -8,13 +8,9 @@ pipeline {
 
         KAFKA_CONTAINER = 'kafka-server'
 
-        ZOOKEEPER_CONTAINER = 'zookeeper-server'
-
         KAFKA_UI_CONTAINER = 'kafka-ui'
 
         KAFKA_VOLUME = 'kafka-data'
-
-        ZOOKEEPER_VOLUME = 'zookeeper-data'
 
         VPS_IP = '57.128.171.127'
     }
@@ -41,11 +37,6 @@ pipeline {
                     docker volume inspect ${KAFKA_VOLUME} >/dev/null 2>&1 || \
                     docker volume create ${KAFKA_VOLUME}
                 """
-
-                sh """
-                    docker volume inspect ${ZOOKEEPER_VOLUME} >/dev/null 2>&1 || \
-                    docker volume create ${ZOOKEEPER_VOLUME}
-                """
             }
         }
 
@@ -56,8 +47,6 @@ pipeline {
                 sh "docker rm -f ${KAFKA_UI_CONTAINER} || true"
 
                 sh "docker rm -f ${KAFKA_CONTAINER} || true"
-
-                sh "docker rm -f ${ZOOKEEPER_CONTAINER} || true"
             }
         }
 
@@ -65,32 +54,13 @@ pipeline {
 
             steps {
 
-                sh 'docker pull bitnami/zookeeper:3.9'
-
-                sh 'docker pull bitnami/kafka:3.7'
+                sh 'docker pull apache/kafka:latest'
 
                 sh 'docker pull provectuslabs/kafka-ui:latest'
             }
         }
 
-        stage('Deploy Zookeeper') {
-
-            steps {
-
-                sh """
-                    docker run -d \
-                      --name ${ZOOKEEPER_CONTAINER} \
-                      --network ${NETWORK_NAME} \
-                      -p 2181:2181 \
-                      -e ALLOW_ANONYMOUS_LOGIN=yes \
-                      -v ${ZOOKEEPER_VOLUME}:/bitnami/zookeeper \
-                      --restart unless-stopped \
-                      bitnami/zookeeper:3.9
-                """
-            }
-        }
-
-        stage('Deploy Kafka') {
+        stage('Deploy Kafka KRaft') {
 
             steps {
 
@@ -99,13 +69,21 @@ pipeline {
                       --name ${KAFKA_CONTAINER} \
                       --network ${NETWORK_NAME} \
                       -p 9092:9092 \
-                      -e KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper-server:2181 \
-                      -e ALLOW_PLAINTEXT_LISTENER=yes \
-                      -e KAFKA_CFG_LISTENERS=PLAINTEXT://:9092 \
-                      -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://${VPS_IP}:9092 \
-                      -v ${KAFKA_VOLUME}:/bitnami/kafka \
+                      -e KAFKA_NODE_ID=1 \
+                      -e KAFKA_PROCESS_ROLES=broker,controller \
+                      -e KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
+                      -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${VPS_IP}:9092 \
+                      -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+                      -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+                      -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
+                      -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+                      -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
+                      -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
+                      -e KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0 \
+                      -e KAFKA_NUM_PARTITIONS=3 \
+                      -v ${KAFKA_VOLUME}:/var/lib/kafka/data \
                       --restart unless-stopped \
-                      bitnami/kafka:3.7
+                      apache/kafka:latest
                 """
             }
         }
@@ -133,7 +111,7 @@ pipeline {
 
                 echo 'Waiting for Kafka startup...'
 
-                sh 'sleep 30'
+                sh 'sleep 40'
             }
         }
 
