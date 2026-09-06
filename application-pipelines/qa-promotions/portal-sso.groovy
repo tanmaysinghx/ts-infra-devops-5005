@@ -4,12 +4,12 @@ pipeline {
     environment {
         APP_NAME = "portal-sso"
         REGISTRY = "tanmaysinghx"
-        DOCKERHUB_CREDS = credentials('dockerhub-creds')
     }
 
     parameters {
         string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Target Docker image tag or GitHub Release tag to promote (defaults to "latest", which resolves to dev-latest)')
         string(name: 'QA_PORT', defaultValue: '8090', description: 'Host port to bind for QA container instance (defaults to 8090)')
+        string(name: 'DOCKERHUB_CRED_ID', defaultValue: 'dockerhub-creds', description: 'Jenkins Credential ID for Docker Hub (Username with password)')
     }
 
     stages {
@@ -43,10 +43,21 @@ pipeline {
             steps {
                 echo "Pulling ${env.TARGET_TAG} from Docker Hub and tagging as qa-latest..."
                 script {
-                    sh 'echo $DOCKERHUB_CREDS_PSW | docker login -u $DOCKERHUB_CREDS_USR --password-stdin'
+                    def credId = params.DOCKERHUB_CRED_ID?.trim() ?: 'dockerhub-creds'
+                    try {
+                        withCredentials([usernamePassword(credentialsId: credId, usernameVariable: 'DH_USER', passwordVariable: 'DH_PASS')]) {
+                            sh 'echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin'
+                        }
+                    } catch (Exception e) {
+                        echo "Notice: Proceeding without explicit Docker Hub login (${e.message})."
+                    }
                     sh "docker pull ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}"
                     sh "docker tag ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG} ${env.REGISTRY}/${env.APP_NAME}:qa-latest"
-                    sh "docker push ${env.REGISTRY}/${env.APP_NAME}:qa-latest"
+                    try {
+                        sh "docker push ${env.REGISTRY}/${env.APP_NAME}:qa-latest"
+                    } catch (Exception e) {
+                        echo "Warning: Could not push qa-latest tag to Docker Hub: ${e.message}"
+                    }
                 }
             }
         }

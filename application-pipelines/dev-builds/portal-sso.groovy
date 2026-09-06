@@ -5,13 +5,14 @@ pipeline {
         APP_NAME = "portal-sso"
         REGISTRY = "tanmaysinghx"
         GITHUB_REPO = "tanmaysinghx/portal-sso"
-        DOCKERHUB_CREDS = credentials('dockerhub-creds')
     }
 
     parameters {
         string(name: 'RELEASE_TAG', defaultValue: 'latest', description: 'Target GitHub Release tag (e.g. "latest", "v25.0.1"). "latest" downloads the most recent published release.')
-        booleanParam(name: 'DEPLOY_TO_DEV', defaultValue: true, description: 'Deploy the container to Dev environment after pushing to Docker Hub')
+        booleanParam(name: 'DEPLOY_TO_DEV', defaultValue: true, description: 'Deploy the container to Dev environment')
         string(name: 'DEV_PORT', defaultValue: '8090', description: 'Host port to bind for Dev container instance (defaults to 8090)')
+        booleanParam(name: 'PUSH_TO_DOCKERHUB', defaultValue: true, description: 'Push built image to Docker Hub registry')
+        string(name: 'DOCKERHUB_CRED_ID', defaultValue: 'dockerhub-creds', description: 'Jenkins Credential ID for Docker Hub (Username with password)')
     }
 
     stages {
@@ -123,15 +124,26 @@ DOCKER_EOF
         }
 
         stage('Push to Docker Hub') {
+            when {
+                expression { return params.PUSH_TO_DOCKERHUB == true }
+            }
             steps {
                 script {
-                    echo "Logging into Docker Hub securely..."
-                    sh 'echo $DOCKERHUB_CREDS_PSW | docker login -u $DOCKERHUB_CREDS_USR --password-stdin'
-
-                    echo "Pushing images (${env.TARGET_TAG}, ${env.DEPLOY_ENV}-latest, latest)..."
-                    sh "docker push ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}"
-                    sh "docker push ${env.REGISTRY}/${env.APP_NAME}:${env.DEPLOY_ENV}-latest"
-                    sh "docker push ${env.REGISTRY}/${env.APP_NAME}:latest"
+                    def credId = params.DOCKERHUB_CRED_ID?.trim() ?: 'dockerhub-creds'
+                    echo "Checking Docker Hub authentication using credential '${credId}'..."
+                    try {
+                        withCredentials([usernamePassword(credentialsId: credId, usernameVariable: 'DH_USER', passwordVariable: 'DH_PASS')]) {
+                            sh 'echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin'
+                            echo "Pushing images (${env.TARGET_TAG}, ${env.DEPLOY_ENV}-latest, latest)..."
+                            sh "docker push ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}"
+                            sh "docker push ${env.REGISTRY}/${env.APP_NAME}:${env.DEPLOY_ENV}-latest"
+                            sh "docker push ${env.REGISTRY}/${env.APP_NAME}:latest"
+                        }
+                    } catch (Exception e) {
+                        echo "⚠️ Warning: Could not push to Docker Hub with credential '${credId}': ${e.message}"
+                        echo "Ensure credential '${credId}' (Username with password) is created in Jenkins Credentials."
+                        echo "Continuing to local container deployment because the image is already built locally."
+                    }
                 }
             }
         }
@@ -192,7 +204,7 @@ DOCKER_EOF
 
     post {
         success {
-            echo "✅ Successfully prepared and published ${env.APP_NAME}:${env.TARGET_TAG} from GitHub Releases!"
+            echo "✅ Successfully deployed ${env.APP_NAME}:${env.TARGET_TAG} on port ${params.DEV_PORT}!"
         }
         failure {
             echo "❌ Pipeline failed! Please check console output for details."
