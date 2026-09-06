@@ -145,14 +145,16 @@ pipeline {
                         cat << 'DOCKER_EOF' > Dockerfile
 FROM eclipse-temurin:25-jre
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
-RUN groupadd --system --gid 1001 portal && useradd --system --uid 1001 --gid portal --home /app portal
+RUN groupadd --system --gid 1001 portal && useradd --system --uid 1001 --gid portal --create-home --home /home/portal portal
 WORKDIR /app
+RUN mkdir -p /app/.portal-sso && chown -R portal:portal /app /home/portal
 COPY --chown=portal:portal portal-sso.jar app.jar
 USER portal
 EXPOSE 8090
 HEALTHCHECK --interval=15s --timeout=3s --start-period=45s --retries=5 \\
     CMD curl -fsS http://localhost:8090/actuator/health/readiness || exit 1
 ENV SERVER_PORT=8090
+ENV PORTAL_HOME=/app/.portal-sso
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0"
 ENTRYPOINT ["sh", "-c", "exec java \$JAVA_OPTS -jar /app/app.jar"]
 DOCKER_EOF
@@ -222,9 +224,10 @@ DOCKER_EOF
                             --network ts-app-network \\
                             -p ${params.DEV_PORT}:8090 \\
                             -e SERVER_PORT=8090 \\
-                            -e ISSUER_URL=http://localhost:${params.DEV_PORT} \\
+                            -e PORTAL_HOME=/app/.portal-sso \\
+                            -e ISSUER_URL=https://portal.tanmaysinghx.com \\
                             ${envFileOption} \\
-                            -v ${env.APP_NAME}-${env.DEPLOY_ENV}-data:/home/portal/.portal-sso \\
+                            -v ${env.APP_NAME}-${env.DEPLOY_ENV}-data:/app/.portal-sso \\
                             --restart unless-stopped \\
                             ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}
                     """

@@ -126,9 +126,10 @@ pipeline {
                             --network ts-app-network \\
                             -p ${params.QA_PORT}:8090 \\
                             -e SERVER_PORT=8090 \\
-                            -e ISSUER_URL=http://localhost:${params.QA_PORT} \\
+                            -e PORTAL_HOME=/app/.portal-sso \\
+                            -e ISSUER_URL=https://portal.tanmaysinghx.com \\
                             ${envOption} \\
-                            -v ${env.APP_NAME}-${env.DEPLOY_ENV}-data:/home/portal/.portal-sso \\
+                            -v ${env.APP_NAME}-${env.DEPLOY_ENV}-data:/app/.portal-sso \\
                             --restart unless-stopped \\
                             ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}
                     """
