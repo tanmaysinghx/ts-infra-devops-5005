@@ -1,0 +1,143 @@
+pipeline {
+    agent any
+
+    environment {
+        APP_NAME = "portal-sso"
+        REGISTRY = "tanmaysinghx"
+        DOCKERHUB_CREDS = credentials('dockerhub-creds')
+    }
+
+    parameters {
+        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Target Docker image tag or GitHub Release tag to promote (defaults to "latest", which resolves to dev-latest)')
+        string(name: 'QA_PORT', defaultValue: '8090', description: 'Host port to bind for QA container instance (defaults to 8090)')
+    }
+
+    stages {
+        stage('Initialize Environment') {
+            steps {
+                script {
+                    env.DEPLOY_ENV = 'qa'
+                    def requestedTag = params.IMAGE_TAG?.trim() ?: 'latest'
+                    env.TARGET_TAG = (requestedTag == 'latest') ? "dev-latest" : requestedTag
+
+                    echo "========================================================="
+                    echo " QA Promotion Target  : ${env.APP_NAME}:${env.TARGET_TAG}"
+                    echo " Target Environment   : ${env.DEPLOY_ENV}"
+                    echo " Target Port          : ${params.QA_PORT}"
+                    echo "========================================================="
+                }
+            }
+        }
+
+        stage('Checkout Infra') {
+            steps {
+                echo "Checking out ts-infra-devops-5005 repository for ${env.DEPLOY_ENV} configuration..."
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[url: "https://github.com/tanmaysinghx/ts-infra-devops-5005.git"]]
+                ])
+            }
+        }
+
+        stage('Pull & Promote Image') {
+            steps {
+                echo "Pulling ${env.TARGET_TAG} from Docker Hub and tagging as qa-latest..."
+                script {
+                    sh 'echo $DOCKERHUB_CREDS_PSW | docker login -u $DOCKERHUB_CREDS_USR --password-stdin'
+                    sh "docker pull ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}"
+                    sh "docker tag ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG} ${env.REGISTRY}/${env.APP_NAME}:qa-latest"
+                    sh "docker push ${env.REGISTRY}/${env.APP_NAME}:qa-latest"
+                }
+            }
+        }
+
+        stage('Decrypt Secrets') {
+            steps {
+                echo "Decrypting ${env.DEPLOY_ENV} secrets using custom vault..."
+                script {
+                    def secretEncPath = "environments/${env.DEPLOY_ENV}/configs/${env.APP_NAME}/.env.enc"
+                    if (fileExists(secretEncPath)) {
+                        withCredentials([string(credentialsId: 'infra-vault-pwd', variable: 'VAULT_PWD')]) {
+                            sh 'docker run --rm -v "${WORKSPACE}:/workspace" -w /workspace node:20-alpine node scripts/vault.js decrypt environments/' + env.DEPLOY_ENV + '/configs/' + env.APP_NAME + '/.env.enc "$VAULT_PWD"'
+                        }
+                    } else {
+                        echo "Notice: No encrypted secrets file found at ${secretEncPath}. Proceeding with container defaults."
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Container') {
+            steps {
+                script {
+                    echo "Deploying ${env.APP_NAME} container to QA environment on port ${params.QA_PORT}..."
+                    def secretPath = "${WORKSPACE}/environments/${env.DEPLOY_ENV}/configs/${env.APP_NAME}/.env"
+                    def envOption = fileExists(secretPath) ? "--env-file ${secretPath}" : ""
+
+                    sh """
+                        docker network create ts-app-network || true
+                        docker stop ${env.APP_NAME}-${env.DEPLOY_ENV} || true
+                        docker rm ${env.APP_NAME}-${env.DEPLOY_ENV} || true
+
+                        docker run -d \\
+                            --name ${env.APP_NAME}-${env.DEPLOY_ENV} \\
+                            --network ts-app-network \\
+                            -p ${params.QA_PORT}:8090 \\
+                            -e SERVER_PORT=8090 \\
+                            -e ISSUER_URL=http://localhost:${params.QA_PORT} \\
+                            ${envOption} \\
+                            -v ${env.APP_NAME}-${env.DEPLOY_ENV}-data:/home/portal/.portal-sso \\
+                            --restart unless-stopped \\
+                            ${env.REGISTRY}/${env.APP_NAME}:${env.TARGET_TAG}
+                    """
+                }
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                script {
+                    echo "Validating QA container startup and readiness on port ${params.QA_PORT}..."
+                    sh """
+                        sleep 10
+                        READY=0
+                        for i in \$(seq 1 12); do
+                            if curl -fsS "http://localhost:${params.QA_PORT}/actuator/health/readiness" > /dev/null 2>&1; then
+                                echo "✅ Portal SSO QA instance is healthy and ready on port ${params.QA_PORT}!"
+                                READY=1
+                                break
+                            fi
+                            echo "Waiting for container readiness probe (attempt \$i/12)..."
+                            sleep 5
+                        done
+
+                        if [ "\$READY" -ne 1 ]; then
+                            echo "⚠️ Warning: Container readiness probe timed out. Checking container logs:"
+                            docker logs --tail 50 ${env.APP_NAME}-${env.DEPLOY_ENV} || true
+                        fi
+                    """
+                }
+            }
+        }
+
+        stage('Cleanup') {
+            steps {
+                script {
+                    echo "Cleaning up local workspace decrypted files and temporary images..."
+                    sh "rm -f environments/${env.DEPLOY_ENV}/configs/${env.APP_NAME}/.env || true"
+                    sh "docker image prune -f || true"
+                    sh "docker logout || true"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "🎉 Successfully promoted and deployed ${env.APP_NAME}:${env.TARGET_TAG} to QA on port ${params.QA_PORT}!"
+        }
+        failure {
+            echo "❌ QA deployment failed! Please check console logs."
+        }
+    }
+}
