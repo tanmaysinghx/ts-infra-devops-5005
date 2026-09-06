@@ -145,11 +145,8 @@ pipeline {
                         cat << 'DOCKER_EOF' > Dockerfile
 FROM eclipse-temurin:25-jre
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
-RUN groupadd --system --gid 1001 portal && useradd --system --uid 1001 --gid portal --create-home --home /home/portal portal
 WORKDIR /app
-RUN mkdir -p /app/.portal-sso && chown -R portal:portal /app /home/portal
-COPY --chown=portal:portal portal-sso.jar app.jar
-USER portal
+COPY portal-sso.jar app.jar
 EXPOSE 8090
 HEALTHCHECK --interval=15s --timeout=3s --start-period=45s --retries=5 \\
     CMD curl -fsS http://localhost:8090/actuator/health/readiness || exit 1
