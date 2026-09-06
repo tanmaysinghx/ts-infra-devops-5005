@@ -4,6 +4,7 @@ pipeline {
     environment {
         APP_NAME = "portal-sso"
         REGISTRY = "tanmaysinghx"
+        PATH = "${WORKSPACE}/bin:${env.PATH}"
     }
 
     parameters {
@@ -25,6 +26,36 @@ pipeline {
                     echo " Target Environment   : ${env.DEPLOY_ENV}"
                     echo " Target Port          : ${params.QA_PORT}"
                     echo "========================================================="
+
+                    sh """
+                        mkdir -p "${WORKSPACE}/bin"
+                        if command -v docker >/dev/null 2>&1; then
+                            echo "✅ Docker CLI found at: \$(which docker)"
+                        else
+                            echo "Docker CLI not in standard PATH. Searching host paths or installing static binary..."
+                            if [ -x /usr/bin/docker ]; then
+                                ln -sf /usr/bin/docker "${WORKSPACE}/bin/docker"
+                            elif [ -x /usr/local/bin/docker ]; then
+                                ln -sf /usr/local/bin/docker "${WORKSPACE}/bin/docker"
+                            else
+                                echo "Fetching official static Docker client..."
+                                ARCH=\$(uname -m)
+                                case "\$ARCH" in
+                                    x86_64|amd64) DOCKER_ARCH="x86_64" ;;
+                                    aarch64|arm64) DOCKER_ARCH="aarch64" ;;
+                                    *) DOCKER_ARCH="x86_64" ;;
+                                esac
+                                curl -fsSL "https://download.docker.com/linux/static/stable/\${DOCKER_ARCH}/docker-27.5.1.tgz" -o /tmp/docker.tgz
+                                tar -xz -C /tmp -f /tmp/docker.tgz docker/docker
+                                mv /tmp/docker/docker "${WORKSPACE}/bin/docker"
+                                chmod +x "${WORKSPACE}/bin/docker"
+                                rm -rf /tmp/docker /tmp/docker.tgz
+                                echo "Static Docker CLI installed to ${WORKSPACE}/bin/docker"
+                            fi
+                        fi
+
+                        "${WORKSPACE}/bin/docker" --version || docker --version || true
+                    """
                 }
             }
         }

@@ -5,6 +5,7 @@ pipeline {
         APP_NAME = "portal-sso"
         REGISTRY = "tanmaysinghx"
         GITHUB_REPO = "tanmaysinghx/portal-sso"
+        PATH = "${WORKSPACE}/bin:${env.PATH}"
     }
 
     parameters {
@@ -16,6 +17,49 @@ pipeline {
     }
 
     stages {
+        stage('Initialize & Ensure Docker CLI') {
+            steps {
+                script {
+                    echo "Checking Docker CLI availability on Jenkins agent..."
+                    sh """
+                        mkdir -p "${WORKSPACE}/bin"
+                        if command -v docker >/dev/null 2>&1; then
+                            echo "✅ Docker CLI found at: \$(which docker)"
+                        else
+                            echo "Docker CLI not in standard PATH. Searching host paths or installing static binary..."
+                            if [ -x /usr/bin/docker ]; then
+                                ln -sf /usr/bin/docker "${WORKSPACE}/bin/docker"
+                            elif [ -x /usr/local/bin/docker ]; then
+                                ln -sf /usr/local/bin/docker "${WORKSPACE}/bin/docker"
+                            else
+                                echo "Fetching official static Docker client..."
+                                ARCH=\$(uname -m)
+                                case "\$ARCH" in
+                                    x86_64|amd64) DOCKER_ARCH="x86_64" ;;
+                                    aarch64|arm64) DOCKER_ARCH="aarch64" ;;
+                                    *) DOCKER_ARCH="x86_64" ;;
+                                esac
+                                curl -fsSL "https://download.docker.com/linux/static/stable/\${DOCKER_ARCH}/docker-27.5.1.tgz" -o /tmp/docker.tgz
+                                tar -xz -C /tmp -f /tmp/docker.tgz docker/docker
+                                mv /tmp/docker/docker "${WORKSPACE}/bin/docker"
+                                chmod +x "${WORKSPACE}/bin/docker"
+                                rm -rf /tmp/docker /tmp/docker.tgz
+                                echo "Static Docker CLI installed to ${WORKSPACE}/bin/docker"
+                            fi
+                        fi
+
+                        "${WORKSPACE}/bin/docker" --version || docker --version || true
+
+                        if [ -S /var/run/docker.sock ]; then
+                            echo "✅ Docker socket /var/run/docker.sock detected."
+                        else
+                            echo "⚠️ Warning: /var/run/docker.sock is not visible in this container."
+                        fi
+                    """
+                }
+            }
+        }
+
         stage('Resolve Release Tag') {
             steps {
                 script {
@@ -25,7 +69,6 @@ pipeline {
                     if (requestedTag == 'latest') {
                         echo "Querying GitHub for the latest release tag of ${env.GITHUB_REPO}..."
                         try {
-                            // Try resolving latest release tag via GitHub API
                             def tagFromApi = sh(
                                 script: """
                                     curl -fsSL --connect-timeout 10 https://api.github.com/repos/${env.GITHUB_REPO}/releases/latest 2>/dev/null \
@@ -37,7 +80,6 @@ pipeline {
                             if (tagFromApi && tagFromApi.startsWith("v")) {
                                 env.TARGET_TAG = tagFromApi
                             } else {
-                                // Fallback: inspect redirect from GitHub releases/latest
                                 def tagFromRedirect = sh(
                                     script: "curl -sIL -o /dev/null -w '%{url_effective}' https://github.com/${env.GITHUB_REPO}/releases/latest | awk -F'/' '{print \$NF}'",
                                     returnStdout: true
