@@ -11,7 +11,7 @@ pipeline {
     parameters {
         string(name: 'RELEASE_TAG', defaultValue: 'latest', description: 'Target GitHub Release tag (e.g. "latest", "v1.0.0"). "latest" downloads the most recent published release.')
         booleanParam(name: 'DEPLOY_TO_DEV', defaultValue: true, description: 'Deploy the container to Dev environment')
-        string(name: 'DEV_PORT', defaultValue: '8081', description: 'Host port to bind for Dev container instance (defaults to 8081)')
+        string(name: 'DEV_PORT', defaultValue: '8082', description: 'Host port to bind for Dev container instance (defaults to 8081)')
         booleanParam(name: 'PUSH_TO_DOCKERHUB', defaultValue: true, description: 'Push built image to Docker Hub registry')
         string(name: 'DOCKERHUB_CRED_ID', defaultValue: 'dockerhub-creds', description: 'Jenkins Credential ID for Docker Hub (Username with password)')
     }
