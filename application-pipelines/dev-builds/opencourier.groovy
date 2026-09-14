@@ -139,7 +139,7 @@ WORKDIR /app
 COPY opencourier.jar app.jar
 EXPOSE ${params.DEV_PORT}
 HEALTHCHECK --interval=15s --timeout=3s --start-period=45s --retries=5 \\
-    CMD curl -fsS http://localhost:${params.DEV_PORT}/actuator/health || exit 1
+    CMD curl -fsS http://localhost:${params.DEV_PORT}/actuator/health/readiness || curl -fsS http://localhost:${params.DEV_PORT}/ || exit 1
 ENV SERVER_PORT=${params.DEV_PORT}
 ENV COURIER_HOME=/app/.opencourier
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0"
