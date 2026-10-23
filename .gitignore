@@ -1,0 +1,17 @@
+# OS / editor artifacts
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Decrypted secrets — only .env.enc (vault-encrypted) and .env.example may be committed
+.env
+*.env
+!*.env.example
+.env.local
+*.properties.dec
+app.env
+
+# Node
+node_modules/

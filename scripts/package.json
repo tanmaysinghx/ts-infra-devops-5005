@@ -1,0 +1,6 @@
+{
+  "name": "ts-infra-vault",
+  "private": true,
+  "type": "module",
+  "description": "AES-256-CBC file vault used by the Jenkins pipelines to decrypt environment secrets"
+}
