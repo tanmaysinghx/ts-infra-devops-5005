@@ -13,7 +13,8 @@ pipeline {
 
         ORACLE_PORT = '1521'
 
-        ORACLE_PASSWORD = 'Tanmay@1999'
+        // Jenkins "Secret text" credential holding the SYS/SYSTEM/PDBADMIN password
+        ORACLE_PWD_CRED_ID = 'oracle-db-password'
     }
 
     stages {
@@ -59,18 +60,21 @@ pipeline {
         stage('Deploy Oracle Database') {
             steps {
 
-                sh """
-                    docker run -d \
-                      --name ${CONTAINER_NAME} \
-                      --network ${NETWORK_NAME} \
-                      -p ${ORACLE_PORT}:1521 \
-                      -p 5500:5500 \
-                      -e ORACLE_PWD=${ORACLE_PASSWORD} \
-                      -e ORACLE_CHARACTERSET=AL32UTF8 \
-                      -v ${ORACLE_VOLUME}:/opt/oracle/oradata \
-                      --restart unless-stopped \
-                      ${IMAGE_NAME}
-                """
+                withCredentials([string(credentialsId: env.ORACLE_PWD_CRED_ID, variable: 'ORACLE_PWD')]) {
+                    // Single-quoted so the secret is expanded by the shell, never interpolated by Groovy
+                    sh '''
+                        docker run -d \
+                          --name "$CONTAINER_NAME" \
+                          --network "$NETWORK_NAME" \
+                          -p "$ORACLE_PORT":1521 \
+                          -p 5500:5500 \
+                          -e ORACLE_PWD \
+                          -e ORACLE_CHARACTERSET=AL32UTF8 \
+                          -v "$ORACLE_VOLUME":/opt/oracle/oradata \
+                          --restart unless-stopped \
+                          "$IMAGE_NAME"
+                    '''
+                }
             }
         }
 
