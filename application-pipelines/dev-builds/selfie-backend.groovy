@@ -1,6 +1,6 @@
 // selfie-backend (Rust/Axum API for tanmaysinghx.com blog reactions and comments):
 // builds from source, runs the test suite, pushes to Docker Hub and deploys the dev container
-// behind nginx (api.tanmaysinghx.com -> 127.0.0.1:8099).
+// behind nginx (selfie.tanmaysinghx.com -> 127.0.0.1:8099).
 //
 // Secrets: the full .env comes from the Jenkins "Secret file" credential ENV_CRED_ID, or from
 // environments/dev/configs/selfie-backend/.env.enc (vault) when present. See .env.example there.
@@ -26,7 +26,7 @@ pipeline {
         string(name: 'GIT_REF', defaultValue: 'main', description: 'Branch or tag of tanmaysinghx/selfie-portfolio to build')
         booleanParam(name: 'RUN_TESTS', defaultValue: true, description: 'Run the backend test suite (cargo test) before building the image')
         booleanParam(name: 'DEPLOY_TO_DEV', defaultValue: true, description: 'Deploy the container to Dev environment')
-        string(name: 'DEV_PORT', defaultValue: '8099', description: 'Host port (bound to 127.0.0.1; nginx proxies api.tanmaysinghx.com to it)')
+        string(name: 'DEV_PORT', defaultValue: '8099', description: 'Host port (bound to 127.0.0.1; nginx proxies selfie.tanmaysinghx.com to it)')
         string(name: 'MEMORY_LIMIT', defaultValue: '128m', description: 'Container memory limit (the API idles at ~10 MB)')
         booleanParam(name: 'PUSH_TO_DOCKERHUB', defaultValue: true, description: 'Push built image to Docker Hub registry')
         string(name: 'DOCKERHUB_CRED_ID', defaultValue: 'dockerhub-creds', description: 'Jenkins Credential ID for Docker Hub (Username with password)')
@@ -199,7 +199,7 @@ pipeline {
             sh 'docker image rm ${IMAGE}:test-${TARGET_TAG} 2>/dev/null || true; docker image prune -f || true; docker logout || true'
         }
         success {
-            echo "✅ Deployed ${env.APP_NAME}:${env.TARGET_TAG} on 127.0.0.1:${params.DEV_PORT} (https://api.tanmaysinghx.com)"
+            echo "✅ Deployed ${env.APP_NAME}:${env.TARGET_TAG} on 127.0.0.1:${params.DEV_PORT} (https://selfie.tanmaysinghx.com)"
         }
         failure {
             echo "❌ Pipeline failed! Please check console output for details."
