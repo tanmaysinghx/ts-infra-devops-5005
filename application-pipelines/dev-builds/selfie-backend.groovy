@@ -84,7 +84,8 @@ pipeline {
             steps {
                 dir("src/${env.CONTEXT_DIR}") {
                     // Unit + HTTP tests; database tests skip themselves (no TEST_DATABASE_URL in CI).
-                    sh 'docker build --target test -t ${IMAGE}:test-${TARGET_TAG} .'
+                    // The deps stage is tagged so its compiled-crate layers survive image pruning between builds.
+                    sh 'docker build --target deps -t ${IMAGE}:build-cache . && docker build --target test -t ${IMAGE}:test-${TARGET_TAG} .'
                 }
             }
         }
@@ -150,8 +151,8 @@ pipeline {
                     docker run -d \
                         --name $CONTAINER \
                         --network ts-app-network \
-                        -p 127.0.0.1:${DEV_PORT}:${CONTAINER_PORT} \
-                        --memory ${MEMORY_LIMIT} \
+                        -p 127.0.0.1:${DEV_PORT:-8099}:${CONTAINER_PORT} \
+                        --memory ${MEMORY_LIMIT:-128m} \
                         --env-file app.env \
                         -e HOST=0.0.0.0 \
                         -e PORT=${CONTAINER_PORT} \
