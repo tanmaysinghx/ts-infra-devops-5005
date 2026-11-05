@@ -71,6 +71,7 @@ flowchart LR
 | `opsnow` | `application-pipelines/dev-builds/opsnow.groovy` | Release JAR, or source (`BUILD_FROM_SOURCE`) | `8085 → 8085` | ✅ | `8085 → 8085` |
 | `opencourier` | `application-pipelines/dev-builds/opencourier.groovy` | GitHub Release JAR | `8082 → 8082` | — | — |
 | `hidenseek-vpn` | `application-pipelines/dev-builds/hidenseek-vpn.groovy` | Source (`GIT_REF`), runs tests | `127.0.0.1:8095 → 8090` (nginx in front) | — | — |
+| `selfie-backend` | `application-pipelines/dev-builds/selfie-backend.groovy` | Source (`GIT_REF`, `backend/` of selfie-portfolio), runs tests | `127.0.0.1:8099 → 8080` (nginx: api.tanmaysinghx.com) | — | — |
 | `ts-auth-service-1625` | `application-pipelines/dev-builds/ts-auth-service-1625.groovy` | Source (`main`) | build & push only | ✅ | `1625 → 1625` |
 | `ts-api-engine-service-1606` | `application-pipelines/dev-builds/ts-api-engine-service-1606.groovy` | Source (`main`) | build & push only | ✅ | `1606 → 1606` |
 | `ts-api-gateway-1701` | `api-gateways/dev-builds/ts-api-gateway-1701-pipeline-dev.groovy` | Source (`main`) | build & push only | ✅ (`api-gateways/qa-promotions/`) | `1701 → 8080` |
