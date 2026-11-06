@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  secrets-guard:
+    name: No plaintext secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ansible secrets must be vault-encrypted
+        run: |
+          fail=0
+          for f in $(git ls-files 'infra/ansible/**/secrets.yml'); do
+            head -1 "$f" | grep -q '^\$ANSIBLE_VAULT;' || { echo "::error file=$f::not ansible-vault encrypted"; fail=1; }
+          done
+          exit $fail
+      - name: No plaintext .env / tfvars / tfstate committed
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)\.env$|\.tfstate|(^|/)terraform\.tfvars$' || true)
+          [ -z "$bad" ] || { echo "::error::committed secret-bearing files: $bad"; exit 1; }
+
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - run: terraform fmt -recursive -check infra/terraform
+      - run: terraform -chdir=infra/terraform/environments/prod init -backend=false -input=false
+      - run: terraform -chdir=infra/terraform/environments/prod validate
+
+  ansible:
+    name: Ansible
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/ansible
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ansible-core ansible-lint yamllint
+      - run: ansible-galaxy collection install -r requirements.yml
+      - run: yamllint .
+      - run: cp inventories/prod/hosts.example.yml inventories/prod/hosts.yml
+      - run: ansible-playbook -i inventories/prod/hosts.yml playbooks/site.yml --syntax-check
+      - run: ansible-lint
+
+  shell:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          files=$(git ls-files '*.sh')
+          [ -z "$files" ] || shellcheck $files
