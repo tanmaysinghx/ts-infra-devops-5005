@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+server_tokens off;
+
+# Upgrade only when the client asks for it (websockets), otherwise keep-alive.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}

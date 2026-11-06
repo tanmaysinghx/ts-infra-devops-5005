@@ -1,0 +1,66 @@
+# {{ ansible_managed }}
+# {{ site.name }} -> 127.0.0.1:{{ site.upstream_port }}
+{% macro proxy_block() %}
+    client_max_body_size {{ site.client_max_body_size | default('10m') }};
+
+    location / {
+        proxy_pass http://127.0.0.1:{{ site.upstream_port }};
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+{% if site.forwarded_headers | default('') == 'strict' %}
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Port  $server_port;
+        proxy_set_header Forwarded         "";
+{% else %}
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+{% endif %}
+        proxy_set_header X-Forwarded-Proto $scheme;
+{% if site.request_id | default(false) %}
+        proxy_set_header X-Request-Id      $request_id;
+{% endif %}
+{% if site.websocket | default(false) %}
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        $connection_upgrade;
+{% endif %}
+
+        proxy_connect_timeout {{ site.proxy_connect_timeout | default(60) }};
+        proxy_send_timeout    {{ site.proxy_send_timeout | default(60) }};
+        proxy_read_timeout    {{ site.proxy_read_timeout | default(60) }};
+    }
+{% endmacro %}
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ site.server_name }};
+
+    location ^~ /.well-known/acme-challenge/ {
+        root {{ nginx_acme_webroot }};
+        default_type text/plain;
+    }
+
+{% if tls %}
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name {{ site.server_name }};
+
+    ssl_certificate     /etc/letsencrypt/live/{{ site.server_name }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ site.server_name }}/privkey.pem;
+    include snippets/ts-tls.conf;
+
+{{ proxy_block() }}
+}
+{% else %}
+    # No certificate yet: serve plain HTTP until the certbot role issues one.
+{{ proxy_block() }}
+}
+{% endif %}

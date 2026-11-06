@@ -1,0 +1,15 @@
+# cp terraform.tfvars.example terraform.tfvars   (terraform.tfvars is git-ignored)
+# Secrets: export TF_VAR_cloudflare_api_token=... instead of writing it here.
+
+server_ip = "51.79.164.222"
+ssh_user  = "ubuntu"
+zone_name = "tanmaysinghx.com"
+
+# manage_dns  = true
+# run_ansible = true
+# ansible_vault_password_file = "~/.ansible/ts-infra-vault-pass"
+# ansible_extra_args          = "--check --diff"   # dry run
+
+# extra_dns_records = {
+#   grafana = { ip = "51.79.164.222" }
+# }

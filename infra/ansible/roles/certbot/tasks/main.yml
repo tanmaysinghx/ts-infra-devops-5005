@@ -1,0 +1,52 @@
+---
+- name: Install certbot
+  ansible.builtin.apt:
+    name: certbot
+    state: present
+
+- name: Renewal hooks dir
+  ansible.builtin.file:
+    path: /etc/letsencrypt/renewal-hooks/deploy
+    state: directory
+    mode: "0755"
+
+- name: Reload nginx after every renewal
+  ansible.builtin.copy:
+    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      nginx -t && systemctl reload nginx
+
+- name: Issue missing certificates (webroot; DNS must already point here)
+  ansible.builtin.command: >-
+    certbot certonly --webroot -w {{ nginx_acme_webroot }}
+    --non-interactive --agree-tos --no-eff-email
+    -m {{ letsencrypt_email }}
+    --cert-name {{ item.server_name }} -d {{ item.server_name }}
+    {{ '--staging' if certbot_staging | bool else '' }}
+  args:
+    creates: "/etc/letsencrypt/live/{{ item.server_name }}/fullchain.pem"
+  loop: "{{ nginx_sites | selectattr('enabled', 'undefined') | list + nginx_sites | selectattr('enabled', 'defined') | selectattr('enabled') | list }}"
+  loop_control:
+    label: "{{ item.server_name }}"
+  register: certbot_issue
+  failed_when: false
+
+- name: Report certificates that could not be issued
+  ansible.builtin.debug:
+    msg: "Could not issue a cert for {{ item.item.server_name }} (is DNS pointing at this host?). The site stays on HTTP; re-run with --tags certbot."
+  loop: "{{ certbot_issue.results | selectattr('rc', 'defined') | rejectattr('rc', 'equalto', 0) | list }}"
+  loop_control:
+    label: "{{ item.item.server_name }}"
+
+- name: Switch vhosts to HTTPS where a certificate now exists
+  ansible.builtin.include_role:
+    name: nginx
+    tasks_from: vhosts.yml
+
+- name: Make sure the renewal timer is active
+  ansible.builtin.service:
+    name: certbot.timer
+    state: started
+    enabled: true

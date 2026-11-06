@@ -1,0 +1,4 @@
+---
+# Use Let's Encrypt staging while testing a fresh box to avoid rate limits.
+certbot_staging: false
+nginx_acme_webroot: /var/www/letsencrypt

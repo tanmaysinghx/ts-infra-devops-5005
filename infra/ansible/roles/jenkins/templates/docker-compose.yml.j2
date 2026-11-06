@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+name: jenkins
+
+services:
+  jenkins:
+    build: .
+    image: ts/jenkins:local
+    container_name: jenkins
+    restart: unless-stopped
+    # Host docker group gid so the unprivileged jenkins user can use the socket.
+    group_add:
+      - "{{ jenkins_docker_gid }}"
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./casc:/var/jenkins_home/casc:ro
+      - ./secrets:/run/secrets:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  jenkins_home:
+    # Same volume name as the original hand-made setup -> existing data is reused.
+    name: jenkins_jenkins_home

@@ -1,0 +1,5 @@
+---
+- name: Reload nginx
+  listen: Reload nginx
+  ansible.builtin.shell: nginx -t && systemctl reload nginx
+  changed_when: true

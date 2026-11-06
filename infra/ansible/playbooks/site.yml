@@ -1,0 +1,25 @@
+---
+# Full VPS setup. Idempotent: safe to re-run at any time.
+#   ansible-playbook playbooks/site.yml                 # everything
+#   ansible-playbook playbooks/site.yml --tags nginx    # one layer
+- name: Provision VPS
+  hosts: vps
+  become: true
+  gather_facts: true
+
+  # group_vars/all/secrets.yml (ansible-vault) is auto-loaded when present.
+  pre_tasks:
+    - name: Require Ubuntu
+      ansible.builtin.assert:
+        that: ansible_distribution == 'Ubuntu'
+        fail_msg: "These roles target Ubuntu LTS (found {{ ansible_distribution }})."
+      tags: always
+
+  roles:
+    - { role: common,          tags: [common] }
+    - { role: security,        tags: [security] }
+    - { role: docker,          tags: [docker] }
+    - { role: nginx,           tags: [nginx] }
+    - { role: certbot,         tags: [certbot, nginx] }
+    - { role: jenkins,         tags: [jenkins] }
+    - { role: hidenseek_agent, tags: [hidenseek], when: hidenseek_agent_enabled | bool }

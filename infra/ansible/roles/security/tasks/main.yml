@@ -1,0 +1,77 @@
+---
+# ── SSH keys ────────────────────────────────────────────────────────────────
+- name: Authorize admin SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ item }}"
+    state: present
+  loop: "{{ admin_ssh_public_keys }}"
+
+- name: Refuse to disable password login without a key
+  ansible.builtin.assert:
+    that: (admin_ssh_public_keys | length > 0) or not (ssh_disable_password_auth | bool)
+    fail_msg: "admin_ssh_public_keys is empty; disabling password auth would lock you out."
+
+- name: Harden sshd (drop-in wins over cloud-init's 50-*.conf)
+  ansible.builtin.template:
+    src: sshd-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-hardening.conf
+    mode: "0644"
+  notify: Restart ssh
+
+- name: Validate full sshd config before any restart
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false
+
+# ── Firewall ────────────────────────────────────────────────────────────────
+- name: Install ufw and fail2ban
+  ansible.builtin.apt:
+    name: [ufw, fail2ban]
+    state: present
+
+- name: Allow core ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    comment: "{{ item.comment }}"
+  loop:
+    - { port: "{{ ssh_port }}", proto: tcp, comment: ssh }
+    - { port: "80", proto: tcp, comment: http }
+    - { port: "443", proto: tcp, comment: https }
+
+- name: Allow extra ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port | string }}"
+    proto: "{{ item.proto }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ firewall_extra_rules }}"
+
+- name: Enable ufw (default deny incoming)
+  community.general.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+
+# ── fail2ban ────────────────────────────────────────────────────────────────
+- name: Configure fail2ban sshd jail
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/sshd.local
+    mode: "0644"
+    content: |
+      [sshd]
+      enabled  = true
+      port     = {{ ssh_port }}
+      backend  = systemd
+      maxretry = 5
+      findtime = 10m
+      bantime  = 1h
+  notify: Restart fail2ban
+
+- name: Enable fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+  ignore_errors: "{{ ansible_check_mode }}"  # not installed yet during a --check run

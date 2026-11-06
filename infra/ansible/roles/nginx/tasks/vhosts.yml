@@ -1,0 +1,66 @@
+---
+# Re-entrant: the certbot role includes this again after certificates exist,
+# which switches each vhost from HTTP-only to HTTPS.
+- name: Check which sites already have a certificate
+  ansible.builtin.stat:
+    path: "/etc/letsencrypt/live/{{ item.server_name }}/fullchain.pem"
+  loop: "{{ nginx_sites }}"
+  loop_control:
+    label: "{{ item.server_name }}"
+  register: nginx_cert_stat
+
+- name: Build cert lookup
+  ansible.builtin.set_fact:
+    nginx_has_cert: "{{ dict(nginx_cert_stat.results | map(attribute='item.server_name') | zip(nginx_cert_stat.results | map(attribute='stat.exists'))) }}"
+
+- name: Render vhost
+  ansible.builtin.template:
+    src: vhost.conf.j2
+    dest: "/etc/nginx/sites-available/{{ item.name }}.conf"
+    mode: "0644"
+  loop: "{{ nginx_sites }}"
+  loop_control:
+    label: "{{ item.name }}"
+  vars:
+    site: "{{ item }}"
+    tls: "{{ nginx_has_cert[item.server_name] }}"
+  notify: Reload nginx
+
+- name: Enable vhost
+  ansible.builtin.file:  # noqa: risky-file-permissions  (symlink; mode is meaningless)
+    src: "/etc/nginx/sites-available/{{ item.name }}.conf"
+    dest: "/etc/nginx/sites-enabled/{{ item.name }}.conf"
+    state: link
+    force: true  # target is templated just before; lets --check runs pass
+  loop: "{{ nginx_sites | rejectattr('enabled', 'defined') | list + nginx_sites | selectattr('enabled', 'defined') | selectattr('enabled') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload nginx
+
+- name: Disable vhost
+  ansible.builtin.file:
+    path: "/etc/nginx/sites-enabled/{{ item.name }}.conf"
+    state: absent
+  loop: "{{ nginx_sites | selectattr('enabled', 'defined') | rejectattr('enabled') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload nginx
+
+- name: Find vhosts enabled outside of Ansible
+  ansible.builtin.find:
+    paths: /etc/nginx/sites-enabled
+    file_type: any
+    excludes: "{{ ['00-default-server.conf'] + (nginx_sites | map(attribute='name') | map('regex_replace', '$', '.conf') | list) }}"
+  register: nginx_unmanaged
+
+- name: Disable unmanaged vhosts (e.g. hand-made 'jenkins', 'portal' without .conf)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ nginx_unmanaged.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  notify: Reload nginx
+
+- name: Apply nginx changes now
+  ansible.builtin.meta: flush_handlers

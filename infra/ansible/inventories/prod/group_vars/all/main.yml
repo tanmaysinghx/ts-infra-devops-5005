@@ -1,0 +1,116 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Single source of truth for the prod VPS. Secrets live in secrets.yml
+# (ansible-vault encrypted) — see secrets.example.yml.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Host basics ──────────────────────────────────────────────────────────────
+admin_user: ubuntu
+timezone: Etc/UTC
+swap_size_mb: 2048
+vm_swappiness: 10
+
+# Public keys allowed to SSH as admin_user. Password login is disabled once at
+# least one key is present (the play refuses to lock you out otherwise).
+admin_ssh_public_keys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEVh+sQbCRviylAAEGHvHFSfpdcn6NFm2W5kt1NIcBxL tanmaysinghx@gmail.com"
+
+# ── Firewall (UFW) ───────────────────────────────────────────────────────────
+# 22/80/443 are always open. NOTE: Docker-published ports bypass UFW, so
+# containers must publish on 127.0.0.1 and be reached through nginx.
+firewall_extra_rules:
+  - { port: 51820, proto: udp, comment: "hidenseek-vpn WireGuard" }
+
+# ── TLS / domains ────────────────────────────────────────────────────────────
+base_domain: tanmaysinghx.com
+letsencrypt_email: tanmaysinghx@gmail.com
+
+# Reverse-proxied sites. Each one gets an A record (Terraform), a Let's Encrypt
+# cert and an nginx vhost. upstream_port is the 127.0.0.1 port on the host.
+# server_name must be a literal FQDN: Terraform parses this file for DNS.
+nginx_sites:
+  - name: jenkins
+    server_name: jenkins.tanmaysinghx.com
+    upstream_port: 8080
+    websocket: true
+    client_max_body_size: 64m
+    proxy_read_timeout: 300
+  - name: portal
+    server_name: portal.tanmaysinghx.com
+    upstream_port: 8090
+    forwarded_headers: strict   # portal-sso trusts only X-Forwarded-* it is given
+  - name: eggless
+    server_name: eggless.tanmaysinghx.com
+    upstream_port: 8098
+  - name: hidenseek-vpn
+    server_name: vpn.tanmaysinghx.com
+    upstream_port: 8095
+    client_max_body_size: 2m
+  - name: selfie-api
+    server_name: selfie.tanmaysinghx.com
+    upstream_port: 8099
+    client_max_body_size: 32k
+    proxy_connect_timeout: 5
+    proxy_send_timeout: 15
+    proxy_read_timeout: 15
+    request_id: true
+  - name: courier
+    server_name: courier.tanmaysinghx.com
+    upstream_port: 8082
+    enabled: false              # opencourier is not deployed currently
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+docker_networks:
+  - ts-app-network
+
+# ── Jenkins ──────────────────────────────────────────────────────────────────
+jenkins_base_image: jenkins/jenkins:lts-jdk25
+jenkins_home_dir: /opt/jenkins
+jenkins_url: "https://jenkins.{{ base_domain }}/"
+jenkins_admin_user: admin
+jenkins_admin_email: "{{ letsencrypt_email }}"
+jenkins_executors: 2
+jenkins_java_opts: "-Xmx768m -Djava.awt.headless=true"
+
+jenkins_pipeline_repo: https://github.com/tanmaysinghx/ts-infra-devops-5005.git
+jenkins_pipeline_branch: "*/main"
+
+# Jobs are created by Job DSL on every Jenkins start. Folder paths and job
+# names match the original hand-made setup so URLs/history stay familiar.
+jenkins_folders:
+  - applications
+  - applications/dev
+  - applications/qa
+  - platform
+jenkins_jobs:
+  - { name: applications/dev/portal-sso-service,            script: application-pipelines/dev-builds/portal-sso.groovy }
+  - { name: applications/dev/eggless-observability-service, script: application-pipelines/dev-builds/eggless-observability.groovy }
+  - { name: applications/dev/hidenseek-vpn-service,         script: application-pipelines/dev-builds/hidenseek-vpn.groovy }
+  - { name: applications/dev/selfie-backend,                script: application-pipelines/dev-builds/selfie-backend.groovy }
+  - { name: applications/dev/courier-notification-service,  script: application-pipelines/dev-builds/opencourier.groovy }
+  - { name: applications/dev/opsnow-service,                script: application-pipelines/dev-builds/opsnow.groovy }
+  - { name: applications/dev/ts-auth-service-1625,          script: application-pipelines/dev-builds/ts-auth-service-1625.groovy }
+  - { name: applications/dev/ts-api-engine-service-1606,    script: application-pipelines/dev-builds/ts-api-engine-service-1606.groovy }
+  - { name: applications/dev/ts-api-gateway-1701,           script: api-gateways/dev-builds/ts-api-gateway-1701-pipeline-dev.groovy }
+  - { name: applications/qa/portal-sso-service,             script: application-pipelines/qa-promotions/portal-sso.groovy }
+  - { name: applications/qa/eggless-observability-service,  script: application-pipelines/qa-promotions/eggless-observability.groovy }
+  - { name: applications/qa/opsnow-service,                 script: application-pipelines/qa-promotions/opsnow.groovy }
+  - { name: applications/qa/ts-auth-service-1625,           script: application-pipelines/qa-promotions/ts-auth-service-1625.groovy }
+  - { name: applications/qa/ts-api-engine-service-1606,     script: application-pipelines/qa-promotions/ts-api-engine-service-1606.groovy }
+  - { name: applications/qa/ts-api-gateway-1701,            script: api-gateways/qa-promotions/ts-api-gateway-1701-pipeline-qa.groovy }
+  - { name: platform/oracle-db,                             script: database-pipelines/oracle-db-pipeline.groovy }
+  - { name: platform/kafka,                                 script: middleware-pipelines/kafka/kafka-pipeline.groovy }
+  - { name: platform/prometheus,                            script: monitoring-pipelines/Jenkinsfile.prometheus }
+  - { name: platform/loki,                                  script: monitoring-pipelines/Jenkinsfile.loki }
+  - { name: platform/promtail,                              script: monitoring-pipelines/Jenkinsfile.promtail }
+  - { name: platform/grafana,                               script: monitoring-pipelines/Jenkinsfile.grafana }
+
+# Jenkins "Secret file" credentials: id -> key in jenkins_secret_files (secrets.yml).
+jenkins_file_credentials:
+  - { id: hidenseek-vpn-dev-env,  file_name: .env, description: "hidenseek-vpn DEV .env" }
+  - { id: selfie-backend-dev-env, file_name: .env, description: "selfie-backend DEV .env" }
+
+# ── hidenseek-vpn node agent (optional) ──────────────────────────────────────
+# Set to true and place the binary at roles/hidenseek_agent/files/hidenseek-agent
+# (git-ignored) or point hidenseek_agent_binary_src at it.
+hidenseek_agent_enabled: false

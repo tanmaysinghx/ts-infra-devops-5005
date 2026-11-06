@@ -1,0 +1,110 @@
+---
+- name: Require a real admin password
+  ansible.builtin.assert:
+    that:
+      - jenkins_admin_password is defined
+      - jenkins_admin_password | length >= 12
+      - jenkins_admin_password != 'change-me'
+    fail_msg: "Set jenkins_admin_password (>= 12 chars) in inventories/<env>/group_vars/all/secrets.yml"
+    quiet: true
+
+- name: Look up host docker group id
+  ansible.builtin.getent:
+    database: group
+    key: docker
+
+- name: Remember docker gid
+  ansible.builtin.set_fact:
+    jenkins_docker_gid: "{{ ansible_facts.getent_group.docker[1] }}"
+
+- name: Jenkins directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.owner }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ jenkins_home_dir }}",          owner: root, mode: "0755" }
+    - { path: "{{ jenkins_home_dir }}/casc",     owner: root, mode: "0755" }
+    - { path: "{{ jenkins_home_dir }}/secrets",  owner: "1000", mode: "0700" }  # uid of 'jenkins' in the image
+
+- name: Build context and Configuration-as-Code
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ jenkins_home_dir }}/{{ item.dest }}"
+    mode: "0644"
+    backup: true
+  loop:
+    - { src: Dockerfile.j2,          dest: Dockerfile }
+    - { src: docker-compose.yml.j2,  dest: docker-compose.yml }
+    - { src: jenkins.yaml.j2,        dest: casc/jenkins.yaml }
+    - { src: jobs.groovy.j2,         dest: casc/jobs.groovy }
+  register: jenkins_config
+
+- name: Plugin list
+  ansible.builtin.copy:
+    src: plugins.txt
+    dest: "{{ jenkins_home_dir }}/plugins.txt"
+    mode: "0644"
+  register: jenkins_plugins
+
+- name: Secret values for JCasC (/run/secrets/<name>)
+  ansible.builtin.copy:
+    dest: "{{ jenkins_home_dir }}/secrets/{{ item.key }}"
+    content: "{{ item.value }}"
+    owner: "1000"
+    group: "1000"
+    mode: "0400"
+  loop: "{{ jenkins_secret_values | dict2items | selectattr('value') | list }}"
+  loop_control:
+    label: "{{ item.key }}"
+  no_log: true
+  register: jenkins_secrets
+  vars:
+    jenkins_secret_values:
+      jenkins_admin_password: "{{ jenkins_admin_password }}"
+      dockerhub_token: "{{ dockerhub_token | default('') }}"
+      github_token: "{{ github_token | default('') }}"
+      infra_vault_pwd: "{{ infra_vault_pwd | default('') }}"
+      oracle_db_password: "{{ oracle_db_password | default('') }}"
+
+- name: Secret files for JCasC file credentials
+  ansible.builtin.copy:
+    dest: "{{ jenkins_home_dir }}/secrets/file-{{ item.id }}"
+    content: "{{ (jenkins_secret_files | default({}))[item.id] }}"
+    owner: "1000"
+    group: "1000"
+    mode: "0400"
+  loop: "{{ jenkins_file_credentials }}"
+  loop_control:
+    label: "{{ item.id }}"
+  when: (jenkins_secret_files | default({})).get(item.id, '') | length > 0
+  no_log: true
+  register: jenkins_secret_files_result
+
+- name: Is Jenkins running?
+  ansible.builtin.command: docker inspect -f '{{ "{{" }}.State.Running{{ "}}" }} {{ "{{" }}.Config.Image{{ "}}" }}' jenkins
+  register: jenkins_state
+  changed_when: false
+  failed_when: false
+
+- name: Build image and (re)start Jenkins
+  ansible.builtin.command: docker compose up -d --build --remove-orphans
+  args:
+    chdir: "{{ jenkins_home_dir }}"
+  when: >-
+    jenkins_config.changed or jenkins_plugins.changed or jenkins_secrets.changed
+    or jenkins_secret_files_result.changed
+    or jenkins_state.rc != 0
+    or not jenkins_state.stdout.startswith('true ts/jenkins:local')
+  changed_when: true
+
+- name: Wait for Jenkins to answer
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8080/login
+    status_code: 200
+  register: jenkins_up
+  until: jenkins_up.status == 200
+  retries: 40
+  delay: 6

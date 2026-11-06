@@ -1,0 +1,57 @@
+---
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+- name: Disable the stock default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+
+- name: ACME webroot
+  ansible.builtin.file:
+    path: "{{ nginx_acme_webroot }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+
+- name: Global http-level settings
+  ansible.builtin.template:
+    src: ts-global.conf.j2
+    dest: /etc/nginx/conf.d/00-ts-global.conf
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Shared TLS settings
+  ansible.builtin.template:
+    src: ts-tls.conf.j2
+    dest: /etc/nginx/snippets/ts-tls.conf
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Catch-all server (drops requests for unknown hosts / raw IP)
+  ansible.builtin.template:
+    src: default-server.conf.j2
+    dest: /etc/nginx/sites-available/00-default-server.conf
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Enable catch-all server
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/00-default-server.conf
+    dest: /etc/nginx/sites-enabled/00-default-server.conf
+    state: link
+    force: true  # target is templated just before; lets --check runs pass
+  notify: Reload nginx
+
+- name: Render site vhosts
+  ansible.builtin.include_tasks: vhosts.yml
+
+- name: Start and enable nginx
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true

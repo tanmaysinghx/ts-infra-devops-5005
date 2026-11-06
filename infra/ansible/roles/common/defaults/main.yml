@@ -1,0 +1,19 @@
+---
+common_packages:
+  - ca-certificates
+  - curl
+  - wget
+  - git
+  - gnupg
+  - htop
+  - jq
+  - unzip
+  - acl
+  - chrony
+  - unattended-upgrades
+
+common_sysctl:
+  vm.swappiness: "{{ vm_swappiness | default(10) }}"
+# Never force ip_forward to 0: Docker needs it on. Only pinned to 1 for the VPN agent.
+common_sysctl_vpn:
+  net.ipv4.ip_forward: "1"
