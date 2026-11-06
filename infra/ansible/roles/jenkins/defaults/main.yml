@@ -1,0 +1,15 @@
+---
+jenkins_base_image: jenkins/jenkins:lts-jdk25
+jenkins_home_dir: /opt/jenkins
+jenkins_url: "http://localhost:8080/"
+jenkins_admin_user: admin
+jenkins_admin_email: admin@example.com
+jenkins_executors: 2
+jenkins_java_opts: "-Xmx768m"
+jenkins_pipeline_repo: ""
+jenkins_pipeline_branch: "*/main"
+jenkins_folders: []
+jenkins_jobs: []
+jenkins_file_credentials: []
+dockerhub_username: ""
+github_username: ""

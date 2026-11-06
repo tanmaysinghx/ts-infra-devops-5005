@@ -1,0 +1,7 @@
+---
+profile: production
+exclude_paths:
+  - inventories/*/hosts.yml
+skip_list:
+  - var-naming[no-role-prefix]   # inventory-wide vars (admin_user, nginx_sites, ...) are shared on purpose
+  - yaml[commas]                 # aligned flow mappings in loops/vars read like tables

@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+Port {{ ssh_port }}
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication {{ 'no' if ssh_disable_password_auth | bool else 'yes' }}
+KbdInteractiveAuthentication no
+X11Forwarding no
+MaxAuthTries 4
+ClientAliveInterval 300
+ClientAliveCountMax 2
+AllowUsers {{ admin_user }}

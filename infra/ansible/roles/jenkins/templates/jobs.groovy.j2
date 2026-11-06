@@ -1,0 +1,24 @@
+// {{ ansible_managed }}
+// Job DSL seed: every pipeline job points at a script in this repo.
+{% for f in jenkins_folders %}
+folder('{{ f }}')
+{% endfor %}
+
+{% for j in jenkins_jobs %}
+pipelineJob('{{ j.name }}') {
+    description('Script: {{ j.script }}')
+    logRotator { numToKeep({{ j.keep_builds | default(20) }}) }
+    definition {
+        cpsScm {
+            scm {
+                git {
+                    remote { url('{{ j.repo | default(jenkins_pipeline_repo) }}') }
+                    branch('{{ j.branch | default(jenkins_pipeline_branch) }}')
+                }
+            }
+            scriptPath('{{ j.script }}')
+            lightweight(true)
+        }
+    }
+}
+{% endfor %}

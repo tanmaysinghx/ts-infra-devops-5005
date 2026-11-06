@@ -1,0 +1,81 @@
+# {{ ansible_managed }}
+# Jenkins Configuration-as-Code. ${name} values are read by JCasC from
+# /run/secrets/<name> (files written by Ansible from secrets.yml).
+jenkins:
+  systemMessage: "Managed by ts-infra-devops-5005 (infra/ansible). UI changes to system config are overwritten on restart."
+  numExecutors: {{ jenkins_executors }}
+  mode: NORMAL
+  markupFormatter:
+    rawHtml:
+      disableSyntaxHighlighting: true
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "{{ jenkins_admin_user }}"
+          password: "${jenkins_admin_password}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: true
+  remotingSecurity:
+    enabled: true
+
+unclassified:
+  location:
+    url: "{{ jenkins_url }}"
+    adminAddress: "{{ jenkins_admin_email }}"
+  timestamper:
+    allPipelines: true
+
+security:
+  globalJobDslSecurityConfiguration:
+    useScriptSecurity: false
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+{% if dockerhub_token | default('') | length > 0 %}
+          - usernamePassword:
+              scope: GLOBAL
+              id: dockerhub-creds
+              description: "Docker Hub"
+              username: "{{ dockerhub_username }}"
+              password: "${dockerhub_token}"
+{% endif %}
+{% if github_token | default('') | length > 0 %}
+          - usernamePassword:
+              scope: GLOBAL
+              id: github-token
+              description: "GitHub PAT"
+              username: "{{ github_username }}"
+              password: "${github_token}"
+{% endif %}
+{% if infra_vault_pwd | default('') | length > 0 %}
+          - string:
+              scope: GLOBAL
+              id: infra-vault-pwd
+              description: "scripts/vault.js password"
+              secret: "${infra_vault_pwd}"
+{% endif %}
+{% if oracle_db_password | default('') | length > 0 %}
+          - string:
+              scope: GLOBAL
+              id: oracle-db-password
+              description: "Oracle ORACLE_PWD"
+              secret: "${oracle_db_password}"
+{% endif %}
+{% for c in jenkins_file_credentials if (jenkins_secret_files | default({})).get(c.id, '') | length > 0 %}
+          - file:
+              scope: GLOBAL
+              id: "{{ c.id }}"
+              description: "{{ c.description | default(c.id) }}"
+              fileName: "{{ c.file_name }}"
+              secretBytes: "${readFileBase64:/run/secrets/file-{{ c.id }}}"
+{% endfor %}
+
+jobs:
+  - file: /var/jenkins_home/casc/jobs.groovy

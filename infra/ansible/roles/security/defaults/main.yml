@@ -1,0 +1,4 @@
+---
+ssh_port: "22"
+ssh_disable_password_auth: true
+firewall_extra_rules: []

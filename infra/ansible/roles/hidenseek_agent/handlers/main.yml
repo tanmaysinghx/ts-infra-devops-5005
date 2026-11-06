@@ -1,0 +1,6 @@
+---
+- name: Restart hidenseek-agent
+  ansible.builtin.systemd:
+    name: hidenseek-agent
+    state: restarted
+    daemon_reload: true

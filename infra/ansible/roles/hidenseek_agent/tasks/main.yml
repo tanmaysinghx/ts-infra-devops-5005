@@ -1,0 +1,40 @@
+---
+# Installs the hidenseek-vpn node agent binary + systemd unit. The binary is
+# built from https://github.com/tanmaysinghx/hidenseek-vpn and is NOT committed.
+- name: Check the agent binary is available locally
+  ansible.builtin.stat:
+    path: "{{ hidenseek_agent_binary_src }}"
+  delegate_to: localhost
+  become: false
+  register: hidenseek_bin
+
+- name: Fail with instructions when the binary is missing
+  ansible.builtin.assert:
+    that: hidenseek_bin.stat.exists
+    fail_msg: "Put the hidenseek-agent binary at {{ hidenseek_agent_binary_src }} (or set hidenseek_agent_binary_src)."
+
+- name: Install WireGuard tools
+  ansible.builtin.apt:
+    name: wireguard-tools
+    state: present
+
+- name: Install agent binary
+  ansible.builtin.copy:
+    src: "{{ hidenseek_agent_binary_src }}"
+    dest: /usr/local/bin/hidenseek-agent
+    mode: "0755"
+  notify: Restart hidenseek-agent
+
+- name: Install systemd unit
+  ansible.builtin.copy:
+    src: hidenseek-agent.service
+    dest: /etc/systemd/system/hidenseek-agent.service
+    mode: "0644"
+  notify: Restart hidenseek-agent
+
+- name: Enable agent
+  ansible.builtin.systemd:
+    name: hidenseek-agent
+    enabled: true
+    state: started
+    daemon_reload: true

@@ -1,0 +1,18 @@
+[Unit]
+Description=Hidenseek VPN node agent
+Documentation=https://github.com/tanmaysinghx/hidenseek-vpn
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/hidenseek-agent run
+Restart=always
+RestartSec=5
+# Runs as root: it manages the WireGuard interface, routing, iptables and DNS on port 53.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,67 @@
+---
+- name: Create apt keyrings dir
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Add Docker GPG key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+
+- name: Add Docker apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}
+      signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+    filename: docker
+    state: present
+
+- name: Install Docker Engine + Compose plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Configure Docker daemon (log rotation)
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    content: "{{ docker_daemon_config | to_nice_json }}\n"
+  notify: Restart docker
+
+- name: Enable Docker
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Add admin user to docker group
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    groups: docker
+    append: true
+
+- name: Flush handlers so networks are created on a running daemon
+  ansible.builtin.meta: flush_handlers
+
+- name: Create shared Docker networks
+  ansible.builtin.shell: docker network inspect {{ item | quote }} >/dev/null 2>&1 || { docker network create {{ item | quote }} && echo created; }
+  register: docker_net
+  changed_when: "'created' in docker_net.stdout"
+  loop: "{{ docker_networks }}"
+
+- name: Weekly prune of dangling images and build cache (never networks/volumes)
+  ansible.builtin.cron:
+    name: docker-prune
+    special_time: weekly
+    job: "/usr/bin/docker image prune -f --filter 'until=168h' >/dev/null 2>&1; /usr/bin/docker builder prune -f --filter 'until=168h' >/dev/null 2>&1"
+    user: root

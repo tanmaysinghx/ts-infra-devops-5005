@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+# Requests for an unknown Host (scanners hitting the raw IP) are dropped.
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root {{ nginx_acme_webroot }};
+    }
+    location / {
+        return 444;
+    }
+}
+
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+    ssl_reject_handshake on;
+}

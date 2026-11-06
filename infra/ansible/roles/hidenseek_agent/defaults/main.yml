@@ -1,0 +1,2 @@
+---
+hidenseek_agent_binary_src: "{{ role_path }}/files/hidenseek-agent"

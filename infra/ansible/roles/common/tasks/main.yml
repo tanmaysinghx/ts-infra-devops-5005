@@ -1,0 +1,61 @@
+---
+- name: Update apt cache and upgrade packages
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+    upgrade: safe
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Check for swap file
+  ansible.builtin.stat:
+    path: /swapfile
+  register: common_swapfile
+
+- name: Create swap file
+  when: swap_size_mb | int > 0 and not common_swapfile.stat.exists
+  block:
+    - name: Allocate swap file
+      ansible.builtin.command: fallocate -l {{ swap_size_mb }}M /swapfile
+      changed_when: true
+    - name: Secure swap file permissions
+      ansible.builtin.file:
+        path: /swapfile
+        mode: "0600"
+    - name: Format swap file
+      ansible.builtin.command: mkswap /swapfile
+      changed_when: true
+    - name: Enable swap file
+      ansible.builtin.command: swapon /swapfile
+      changed_when: true
+
+- name: Persist swap in fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: "/swapfile none swap sw 0 0"
+    regexp: '^/swapfile\s'
+  when: swap_size_mb | int > 0
+
+- name: Kernel tuning
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-ts-infra.conf
+    reload: true
+  loop: "{{ (common_sysctl | combine(common_sysctl_vpn if hidenseek_agent_enabled | bool else {})) | dict2items }}"
+
+- name: Enable unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+    mode: "0644"
