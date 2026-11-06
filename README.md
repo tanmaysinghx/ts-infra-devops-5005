@@ -16,6 +16,7 @@ Infrastructure-as-code for the `tanmaysinghx` platform, in two layers:
 - [Secrets & configuration](#secrets--configuration)
 - [Adding a new application](#adding-a-new-application)
 - [Contributing / branching](CONTRIBUTING.md)
+- [Rollout checklist / next steps](docs/next-steps.md)
 
 ---
 
