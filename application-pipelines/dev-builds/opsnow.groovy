@@ -13,6 +13,7 @@ pipeline {
         booleanParam(name: 'BUILD_FROM_SOURCE', defaultValue: false, description: 'Build directly from git source repository using multi-stage Docker build rather than downloading GitHub release JAR')
         booleanParam(name: 'DEPLOY_TO_DEV', defaultValue: true, description: 'Deploy the container to Dev environment')
         string(name: 'DEV_PORT', defaultValue: '8085', description: 'Host port to bind for Dev container instance (defaults to 8085)')
+        string(name: 'BIND_ADDRESS', defaultValue: '127.0.0.1', description: 'Host interface for the published port. Keep 127.0.0.1 (nginx proxies to it); Docker-published ports bypass UFW.')
         booleanParam(name: 'PUSH_TO_DOCKERHUB', defaultValue: true, description: 'Push built image to Docker Hub registry')
         string(name: 'DOCKERHUB_CRED_ID', defaultValue: 'dockerhub-creds', description: 'Jenkins Credential ID for Docker Hub (Username with password)')
     }
@@ -257,7 +258,7 @@ DOCKER_EOF
                         docker run -d \\
                             --name ${env.APP_NAME}-${env.DEPLOY_ENV} \\
                             --network ts-app-network \\
-                            -p ${params.DEV_PORT}:8085 \\
+                            -p ${params.BIND_ADDRESS ?: '127.0.0.1'}:${params.DEV_PORT}:8085 \\
                             -e SERVER_PORT=8085 \\
                             -e OPSNOW_AUTH_SSO_PORTAL_URL=https://portal.tanmaysinghx.com/dashboard \\
                             -e OPSNOW_AUTH_SSO_SIGN_IN_URL=https://portal.tanmaysinghx.com/sign-in \\

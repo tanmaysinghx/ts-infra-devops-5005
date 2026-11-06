@@ -12,6 +12,7 @@ pipeline {
         string(name: 'RELEASE_TAG', defaultValue: 'latest', description: 'Target GitHub Release tag (e.g. "latest", "v1.0.0"). "latest" downloads the most recent published release.')
         booleanParam(name: 'DEPLOY_TO_DEV', defaultValue: true, description: 'Deploy the container to Dev environment')
         string(name: 'DEV_PORT', defaultValue: '8082', description: 'Host port to bind for Dev container instance (also used as the in-container SERVER_PORT)')
+        string(name: 'BIND_ADDRESS', defaultValue: '127.0.0.1', description: 'Host interface for the published port. Keep 127.0.0.1 (nginx proxies to it); Docker-published ports bypass UFW.')
         booleanParam(name: 'PUSH_TO_DOCKERHUB', defaultValue: true, description: 'Push built image to Docker Hub registry')
         string(name: 'DOCKERHUB_CRED_ID', defaultValue: 'dockerhub-creds', description: 'Jenkins Credential ID for Docker Hub (Username with password)')
     }
@@ -191,7 +192,7 @@ DOCKER_EOF
                         docker run -d \\
                             --name ${env.APP_NAME}-${env.DEPLOY_ENV} \\
                             --network ts-app-network \\
-                            -p ${params.DEV_PORT}:${params.DEV_PORT} \\
+                            -p ${params.BIND_ADDRESS ?: '127.0.0.1'}:${params.DEV_PORT}:${params.DEV_PORT} \\
                             -e SERVER_PORT=${params.DEV_PORT} \\
                             -e COURIER_HOME=/app/.opencourier \\
                             -v ${env.APP_NAME}-${env.DEPLOY_ENV}-data:/app/.opencourier \\
